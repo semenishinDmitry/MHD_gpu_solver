@@ -1,0 +1,11 @@
+# Сборка и временные файлы CMake
+build/
+bin/
+lib/
+
+# macOS
+.DS_Store
+
+# IDE и редакторы
+.vscode/
+.idea/
