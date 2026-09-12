@@ -41,7 +41,4 @@ struct MHDFlux {
     double psi = 0.0;
 };
 
-enum class SlopeLimiter {
-    Minmod,
-    MC
-};
+enum class SlopeLimiter { Minmod, MC };

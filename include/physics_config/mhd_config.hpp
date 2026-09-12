@@ -19,7 +19,10 @@ struct NonIdealConfig {
     double eta_hall = 0.0;
     double eta_ambipolar = 0.0;
 
-    static NonIdealConfig ideal() { return {}; }
+    static NonIdealConfig ideal()
+    {
+        return {};
+    }
 
     static NonIdealConfig with_ohmic(double eta)
     {
@@ -115,11 +118,7 @@ struct MHDConfig {
 
     MHDConfig() = default;
 
-    MHDConfig(double gamma_,
-              double Omega_,
-              double q_,
-              double eta_ohm_,
-              double eta_hall_,
+    MHDConfig(double gamma_, double Omega_, double q_, double eta_ohm_, double eta_hall_,
               double eta_ambip_)
         : gamma(gamma_), Omega(Omega_), q(q_)
     {
@@ -135,7 +134,16 @@ struct MHDConfig {
     }
 
     // Backward-compatible accessors used by existing tests.
-    double eta_ohm() const { return nonideal.eta_ohm; }
-    double eta_hall() const { return nonideal.eta_hall; }
-    double eta_ambip() const { return nonideal.eta_ambipolar; }
+    double eta_ohm() const
+    {
+        return nonideal.eta_ohm;
+    }
+    double eta_hall() const
+    {
+        return nonideal.eta_hall;
+    }
+    double eta_ambip() const
+    {
+        return nonideal.eta_ambipolar;
+    }
 };

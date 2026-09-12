@@ -27,9 +27,7 @@ struct StateField {
     StateField() = default;
 
     StateField(int nx_, int ny_)
-        : nx(nx_),
-          ny(ny_),
-          rho(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
+        : nx(nx_), ny(ny_), rho(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           mx(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           my(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           mz(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
@@ -38,9 +36,13 @@ struct StateField {
           by(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           bz(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           psi(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0)
-    {}
+    {
+    }
 
-    int index(int i, int j) const { return j * nx + i; }
+    int index(int i, int j) const
+    {
+        return j * nx + i;
+    }
 
     MHDState get_state(int i, int j) const
     {
@@ -88,9 +90,7 @@ struct PrimitiveField {
     PrimitiveField() = default;
 
     PrimitiveField(int nx_, int ny_)
-        : nx(nx_),
-          ny(ny_),
-          rho(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
+        : nx(nx_), ny(ny_), rho(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           vx(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           vy(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           vz(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
@@ -99,9 +99,13 @@ struct PrimitiveField {
           by(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           bz(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0),
           psi(static_cast<std::size_t>(nx_) * static_cast<std::size_t>(ny_), 0.0)
-    {}
+    {
+    }
 
-    int index(int i, int j) const { return j * nx + i; }
+    int index(int i, int j) const
+    {
+        return j * nx + i;
+    }
 
     MHDPrimitive get(int i, int j) const
     {

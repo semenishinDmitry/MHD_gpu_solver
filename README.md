@@ -48,16 +48,49 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
 
 | Job | What it checks |
 |-----|----------------|
-| Ubuntu Clang / GCC | Release build, `ctest`, Python module smoke + example |
+| clang-format | `./scripts/format.sh check` against repo `.clang-format` |
+| Ubuntu Clang / GCC | Release build, unit + **regression goldens**, Python smoke |
 | macOS AppleClang | Same |
 | Windows MSVC | Same |
+| Ubuntu Clang + benchmarks | Google Benchmark (`mhd_bench`) quick run |
 | Ubuntu Clang Debug + ASan/UBSan | Tests under AddressSanitizer + UndefinedBehaviorSanitizer |
 
 CI always sets `-DMHD_NATIVE_ARCH=OFF` (portable codegen). To reproduce locally:
 
 ```bash
-chmod +x scripts/ci_build.sh
+chmod +x scripts/ci_build.sh scripts/format.sh
+./scripts/format.sh check
 ./scripts/ci_build.sh
+```
+
+### Formatting
+
+Single style: **clang-format** (`.clang-format`). Format the tree with:
+
+```bash
+./scripts/format.sh          # rewrite
+./scripts/format.sh check    # CI gate
+```
+
+### Regression goldens
+
+Reference fields live in `tests/goldens/*.golden` (Orszag–Tang 32² and Ohmic Bz decay).
+Compared with relative L² / L∞ tolerances in `tests/test_regression_golden.cpp`.
+
+Regenerate after intentional physics/numerics changes (Release, `MHD_NATIVE_ARCH=OFF`):
+
+```bash
+cmake -S . -B build-ci -DMHD_NATIVE_ARCH=OFF -DMHD_BUILD_TESTS=ON
+cmake --build build-ci -j
+MHD_REGEN_GOLDENS=1 ./build-ci/tests/mhd_tests --gtest_filter='Regression.*'
+```
+
+### Benchmarks
+
+```bash
+cmake -S . -B build -DMHD_BUILD_BENCHMARKS=ON -DMHD_NATIVE_ARCH=OFF
+cmake --build build -j --target mhd_bench
+./build/benchmarks/mhd_bench --benchmark_filter=BM_OrszagTang_Run
 ```
 
 ## Desktop GUI (Windows / macOS / Linux)

@@ -68,7 +68,8 @@ TEST(NonIdeal, IdealPathLeavesUniformStateUnchanged)
     TimeIntegratorWorkspace work(grid);
     const BoundaryConditions bc(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic);
 
-    const MHDState U0 = to_conservative(MHDPrimitive{1.0, 0.0, 0.0, 0.0, 1.0, 0.1, 0.0, 0.0, 0.0}, kGamma);
+    const MHDState U0 =
+        to_conservative(MHDPrimitive{1.0, 0.0, 0.0, 0.0, 1.0, 0.1, 0.0, 0.0, 0.0}, kGamma);
     for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
         for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
             U.set_state(i, j, U0);
@@ -133,7 +134,6 @@ TEST(NonIdeal, CFLTightensWithDiffusivity)
     }
 
     const CFLResult ideal = compute_cfl_dt(U, grid, kGamma, 0.4, NonIdealConfig::ideal());
-    const CFLResult ohmic =
-        compute_cfl_dt(U, grid, kGamma, 0.4, NonIdealConfig::with_ohmic(1.0));
+    const CFLResult ohmic = compute_cfl_dt(U, grid, kGamma, 0.4, NonIdealConfig::with_ohmic(1.0));
     EXPECT_LT(ohmic.dt, ideal.dt);
 }

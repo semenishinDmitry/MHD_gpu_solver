@@ -13,7 +13,8 @@ int main()
     solver.initialize("orszag_tang");
     const SolveResult result = solver.run(0.05);
 
-    std::cout << "t = " << result.t << ", steps = " << result.steps << ", c_h = " << result.c_h << '\n';
+    std::cout << "t = " << result.t << ", steps = " << result.steps << ", c_h = " << result.c_h
+              << '\n';
     std::cout << "max|div B| = " << solver.max_div_b() << '\n';
     return 0;
 }

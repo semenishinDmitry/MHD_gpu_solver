@@ -2,8 +2,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "mhd/solver_api.hpp"
 #include "mhd/mhd_types.hpp"
+#include "mhd/solver_api.hpp"
 #include "physics_config/mhd_config.hpp"
 
 namespace py = pybind11;
@@ -13,12 +13,12 @@ namespace {
 py::array_t<double> field_to_numpy(const MHDSolver& solver, const std::string& name)
 {
     auto data = solver.copy_field(name);
-    const ssize_t ny = solver.size_y();
-    const ssize_t nx = solver.size_x();
+    const py::ssize_t ny = solver.size_y();
+    const py::ssize_t nx = solver.size_x();
     auto result = py::array_t<double>({ny, nx});
     auto buf = result.mutable_unchecked<2>();
-    for (ssize_t j = 0; j < ny; ++j) {
-        for (ssize_t i = 0; i < nx; ++i) {
+    for (py::ssize_t j = 0; j < ny; ++j) {
+        for (py::ssize_t i = 0; i < nx; ++i) {
             buf(j, i) = data[static_cast<std::size_t>(j * nx + i)];
         }
     }
@@ -52,10 +52,11 @@ PYBIND11_MODULE(mhd_solver, m)
              py::return_value_policy::reference_internal)
         .def("enable_ambipolar", &NonIdealConfig::enable_ambipolar, py::arg("eta"),
              py::return_value_policy::reference_internal)
-        .def("disable_ohmic", &NonIdealConfig::disable_ohmic, py::return_value_policy::reference_internal)
-        .def("disable_hall", &NonIdealConfig::disable_hall, py::return_value_policy::reference_internal)
-        .def("disable_ambipolar",
-             &NonIdealConfig::disable_ambipolar,
+        .def("disable_ohmic", &NonIdealConfig::disable_ohmic,
+             py::return_value_policy::reference_internal)
+        .def("disable_hall", &NonIdealConfig::disable_hall,
+             py::return_value_policy::reference_internal)
+        .def("disable_ambipolar", &NonIdealConfig::disable_ambipolar,
              py::return_value_policy::reference_internal)
         .def("any", &NonIdealConfig::any)
         .def_readwrite("ohmic", &NonIdealConfig::ohmic)
@@ -81,14 +82,9 @@ PYBIND11_MODULE(mhd_solver, m)
         .def_readwrite("max_steps", &SolveParams::max_steps);
 
     py::class_<MHDSolver>(m, "MHDSolver")
-        .def(py::init<int, int, double, double, double, double, int>(),
-             py::arg("nx"),
-             py::arg("ny"),
-             py::arg("x_min") = 0.0,
-             py::arg("x_max") = 1.0,
-             py::arg("y_min") = 0.0,
-             py::arg("y_max") = 1.0,
-             py::arg("ng") = 2)
+        .def(py::init<int, int, double, double, double, double, int>(), py::arg("nx"),
+             py::arg("ny"), py::arg("x_min") = 0.0, py::arg("x_max") = 1.0, py::arg("y_min") = 0.0,
+             py::arg("y_max") = 1.0, py::arg("ng") = 2)
         .def("set_periodic_bc", &MHDSolver::set_periodic_bc)
         .def("set_outflow_bc", &MHDSolver::set_outflow_bc)
         .def("set_gamma", &MHDSolver::set_gamma)
@@ -118,7 +114,6 @@ PYBIND11_MODULE(mhd_solver, m)
         .def_property_readonly("ng", &MHDSolver::ng)
         .def_property_readonly("size_x", &MHDSolver::size_x)
         .def_property_readonly("size_y", &MHDSolver::size_y)
-        .def_property("params",
-                      py::overload_cast<>(&MHDSolver::params),
+        .def_property("params", py::overload_cast<>(&MHDSolver::params),
                       py::overload_cast<>(&MHDSolver::params, py::const_));
 }

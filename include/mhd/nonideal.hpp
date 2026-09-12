@@ -26,11 +26,8 @@ inline Vec3 cross(const Vec3& a, const Vec3& b)
 //   Jx =  ∂Bz/∂y
 //   Jy = -∂Bz/∂x
 //   Jz =  ∂By/∂x - ∂Bx/∂y
-inline void compute_current(const PrimitiveField& W,
-                            const Grid2D& grid,
-                            double* MHD_RESTRICT Jx,
-                            double* MHD_RESTRICT Jy,
-                            double* MHD_RESTRICT Jz)
+inline void compute_current(const PrimitiveField& W, const Grid2D& grid, double* MHD_RESTRICT Jx,
+                            double* MHD_RESTRICT Jy, double* MHD_RESTRICT Jz)
 {
     const double inv_2dx = 0.5 / grid.dx;
     const double inv_2dy = 0.5 / grid.dy;
@@ -110,13 +107,9 @@ inline Vec3 avg3(double ax, double ay, double az, double bx, double by, double b
 // Induction: Faraday ∂t B = -∇×E (face fluxes of E).
 // Energy: Poynting contribution written as B×E_ni (= -E_ni×B), consistent with
 // ∂t E + ∇·(... + B×E_ni) = 0 in the model equations.
-inline void add_nonideal_face_fluxes(const PrimitiveField& W,
-                                     StateField& fx,
-                                     StateField& fy,
-                                     const Grid2D& grid,
-                                     const double* MHD_RESTRICT Jx,
-                                     const double* MHD_RESTRICT Jy,
-                                     const double* MHD_RESTRICT Jz,
+inline void add_nonideal_face_fluxes(const PrimitiveField& W, StateField& fx, StateField& fy,
+                                     const Grid2D& grid, const double* MHD_RESTRICT Jx,
+                                     const double* MHD_RESTRICT Jy, const double* MHD_RESTRICT Jz,
                                      const NonIdealConfig& cfg)
 {
     const int nx = W.nx;

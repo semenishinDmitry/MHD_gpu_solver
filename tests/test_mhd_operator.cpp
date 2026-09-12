@@ -23,9 +23,9 @@ MHDPrimitive sample_primitive()
 
 bool is_finite_flux(const MHDFlux& F)
 {
-    return std::isfinite(F.rho) && std::isfinite(F.mx) && std::isfinite(F.my) && std::isfinite(F.mz) &&
-           std::isfinite(F.energy) && std::isfinite(F.bx) && std::isfinite(F.by) && std::isfinite(F.bz) &&
-           std::isfinite(F.psi);
+    return std::isfinite(F.rho) && std::isfinite(F.mx) && std::isfinite(F.my) &&
+           std::isfinite(F.mz) && std::isfinite(F.energy) && std::isfinite(F.bx) &&
+           std::isfinite(F.by) && std::isfinite(F.bz) && std::isfinite(F.psi);
 }
 
 void fill_uniform(StateField& U, const Grid2D& grid, const MHDState& state)
@@ -103,7 +103,8 @@ TEST(HLL, NontrivialStatesAreFinite)
     WR.bx = -0.1;
     WR.psi = 0.2;
 
-    const MHDFlux Fx = hll_flux_x(to_conservative(WL, kGamma), to_conservative(WR, kGamma), kGamma, 1.5);
+    const MHDFlux Fx =
+        hll_flux_x(to_conservative(WL, kGamma), to_conservative(WR, kGamma), kGamma, 1.5);
     EXPECT_TRUE(is_finite_flux(Fx));
 }
 
@@ -116,20 +117,16 @@ TEST(RHS, UniformStateGivesNearZero)
     const MHDState state = to_conservative(sample_primitive(), kGamma);
     fill_uniform(U, grid, state);
     apply_boundary_conditions(
-        U, grid, BoundaryConditions(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic));
+        U, grid,
+        BoundaryConditions(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic));
     compute_rhs(U, work.rhs, grid, work.rhs_work, kGamma, 1.0, 0.1, SlopeLimiter::MC);
 
     double max_abs = 0.0;
     for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
         for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
             const MHDState L = work.rhs.get_state(i, j);
-            max_abs = std::max({max_abs,
-                                std::abs(L.rho),
-                                std::abs(L.mx),
-                                std::abs(L.energy),
-                                std::abs(L.bx),
-                                std::abs(L.by),
-                                std::abs(L.psi)});
+            max_abs = std::max({max_abs, std::abs(L.rho), std::abs(L.mx), std::abs(L.energy),
+                                std::abs(L.bx), std::abs(L.by), std::abs(L.psi)});
         }
     }
     EXPECT_NEAR(max_abs, 0.0, 1e-10);
@@ -151,7 +148,8 @@ TEST(RHS, PeriodicOperatorConservesMassMomentum)
     }
 
     apply_boundary_conditions(
-        U, grid, BoundaryConditions(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic));
+        U, grid,
+        BoundaryConditions(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic));
     compute_rhs(U, work.rhs, grid, work.rhs_work, kGamma, 1.0, 0.1, SlopeLimiter::Minmod);
 
     const MHDState dUdt_sum = sum_interior(work.rhs, grid);

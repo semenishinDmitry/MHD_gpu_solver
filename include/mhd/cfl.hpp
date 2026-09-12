@@ -21,11 +21,9 @@ struct CFLResult {
 //   dt = min(dt_hyp, dt_diff)
 //   dt_hyp  = cfl / (c_h/dx + c_h/dy)
 //   dt_diff = cfl * h^2 / (2 * d * η_max),  d=2, h=min(dx,dy)
-inline CFLResult compute_cfl_dt(const StateField& U,
-                               const Grid2D& grid,
-                               double gamma,
-                               double cfl_number,
-                               const NonIdealConfig& nonideal = NonIdealConfig::ideal())
+inline CFLResult compute_cfl_dt(const StateField& U, const Grid2D& grid, double gamma,
+                                double cfl_number,
+                                const NonIdealConfig& nonideal = NonIdealConfig::ideal())
 {
     if (cfl_number <= 0.0) {
         throw std::invalid_argument("CFL number must be positive");
@@ -54,7 +52,8 @@ inline CFLResult compute_cfl_dt(const StateField& U,
         for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
             const int idx = row + i;
             const MHDState state{
-                rho[idx], mx[idx], my[idx], mz[idx], energy[idx], bx[idx], by[idx], bz[idx], psi[idx],
+                rho[idx], mx[idx], my[idx], mz[idx],  energy[idx],
+                bx[idx],  by[idx], bz[idx], psi[idx],
             };
             const MHDPrimitive W = to_primitive(state, gamma);
             const double cf_x = fast_magnetosonic_speed_x(W, gamma);

@@ -11,32 +11,32 @@ namespace detail {
 inline MHDFlux scale_flux(double a, const MHDFlux& F)
 {
     return MHDFlux{
-        a * F.rho, a * F.mx, a * F.my, a * F.mz, a * F.energy,
-        a * F.bx, a * F.by, a * F.bz, a * F.psi,
+        a * F.rho, a * F.mx, a * F.my, a * F.mz,  a * F.energy,
+        a * F.bx,  a * F.by, a * F.bz, a * F.psi,
     };
 }
 
 inline MHDFlux add_flux(const MHDFlux& A, const MHDFlux& B)
 {
     return MHDFlux{
-        A.rho + B.rho, A.mx + B.mx, A.my + B.my, A.mz + B.mz, A.energy + B.energy,
-        A.bx + B.bx, A.by + B.by, A.bz + B.bz, A.psi + B.psi,
+        A.rho + B.rho, A.mx + B.mx, A.my + B.my, A.mz + B.mz,   A.energy + B.energy,
+        A.bx + B.bx,   A.by + B.by, A.bz + B.bz, A.psi + B.psi,
     };
 }
 
 inline MHDState scale_state(double a, const MHDState& U)
 {
     return MHDState{
-        a * U.rho, a * U.mx, a * U.my, a * U.mz, a * U.energy,
-        a * U.bx, a * U.by, a * U.bz, a * U.psi,
+        a * U.rho, a * U.mx, a * U.my, a * U.mz,  a * U.energy,
+        a * U.bx,  a * U.by, a * U.bz, a * U.psi,
     };
 }
 
 inline MHDState sub_state(const MHDState& A, const MHDState& B)
 {
     return MHDState{
-        A.rho - B.rho, A.mx - B.mx, A.my - B.my, A.mz - B.mz, A.energy - B.energy,
-        A.bx - B.bx, A.by - B.by, A.bz - B.bz, A.psi - B.psi,
+        A.rho - B.rho, A.mx - B.mx, A.my - B.my, A.mz - B.mz,   A.energy - B.energy,
+        A.bx - B.bx,   A.by - B.by, A.bz - B.bz, A.psi - B.psi,
     };
 }
 
@@ -45,12 +45,8 @@ inline MHDFlux state_to_flux(const MHDState& U)
     return MHDFlux{U.rho, U.mx, U.my, U.mz, U.energy, U.bx, U.by, U.bz, U.psi};
 }
 
-inline MHDFlux hll_combine(double sL,
-                           double sR,
-                           const MHDFlux& FL,
-                           const MHDFlux& FR,
-                           const MHDState& UL,
-                           const MHDState& UR)
+inline MHDFlux hll_combine(double sL, double sR, const MHDFlux& FL, const MHDFlux& FR,
+                           const MHDState& UL, const MHDState& UR)
 {
     constexpr double eps = 1.0e-14;
 

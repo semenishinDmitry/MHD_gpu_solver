@@ -5,11 +5,7 @@
 
 #include <stdexcept>
 
-enum class BoundaryConditionType {
-    Periodic,
-    Reflective,
-    Outflow
-};
+enum class BoundaryConditionType { Periodic, Reflective, Outflow };
 
 struct BoundaryCondition2D {
     BoundaryConditionType type_x;
@@ -17,13 +13,13 @@ struct BoundaryCondition2D {
 
     BoundaryCondition2D(BoundaryConditionType type_x_, BoundaryConditionType type_y_)
         : type_x(type_x_), type_y(type_y_)
-    {}
+    {
+    }
 };
 
 using BoundaryConditions = BoundaryCondition2D;
 
-inline void apply_boundary_conditions_x(StateField& U,
-                                        const Grid2D& grid,
+inline void apply_boundary_conditions_x(StateField& U, const Grid2D& grid,
                                         BoundaryConditionType type)
 {
     const int ng = grid.ng;
@@ -45,14 +41,14 @@ inline void apply_boundary_conditions_x(StateField& U,
                 U.copy_cell(i_right_ghost, j, ng + nx - 1, j);
                 break;
             case BoundaryConditionType::Reflective:
-                throw std::invalid_argument("Reflective boundary conditions are not implemented yet");
+                throw std::invalid_argument(
+                    "Reflective boundary conditions are not implemented yet");
             }
         }
     }
 }
 
-inline void apply_boundary_conditions_y(StateField& U,
-                                        const Grid2D& grid,
+inline void apply_boundary_conditions_y(StateField& U, const Grid2D& grid,
                                         BoundaryConditionType type)
 {
     const int ng = grid.ng;
@@ -74,14 +70,14 @@ inline void apply_boundary_conditions_y(StateField& U,
                 U.copy_cell(i, j_top_ghost, i, ng + ny - 1);
                 break;
             case BoundaryConditionType::Reflective:
-                throw std::invalid_argument("Reflective boundary conditions are not implemented yet");
+                throw std::invalid_argument(
+                    "Reflective boundary conditions are not implemented yet");
             }
         }
     }
 }
 
-inline void apply_boundary_conditions(StateField& U,
-                                      const Grid2D& grid,
+inline void apply_boundary_conditions(StateField& U, const Grid2D& grid,
                                       const BoundaryConditions& bc)
 {
     if (grid.ng < 1) {

@@ -72,8 +72,9 @@ TEST(PerformanceInvariants, SspRk2DoesNotReallocateStateStorage)
 
     for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
         for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
-            U.set_state(
-                i, j, to_conservative(MHDPrimitive{1.0, 0.1, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0}, 5.0 / 3.0));
+            U.set_state(i, j,
+                        to_conservative(MHDPrimitive{1.0, 0.1, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0},
+                                        5.0 / 3.0));
         }
     }
 

@@ -99,7 +99,8 @@ TEST(GLM, OrszagTangDivBIsSuppressed)
             // Use MHD-only CFL estimate but pass c_h = 0 into the RHS/HLL.
             const CFLResult cfl = compute_cfl_dt(U_raw, grid, p.gamma, p.cfl);
             const double dt = std::min(cfl.dt, p.t_end - t);
-            ssp_rk2_step(U_raw, work_raw, grid, bc, p.gamma, dt, /*c_h=*/0.0, /*glm_alpha=*/0.0, p.limiter);
+            ssp_rk2_step(U_raw, work_raw, grid, bc, p.gamma, dt, /*c_h=*/0.0, /*glm_alpha=*/0.0,
+                         p.limiter);
             t += dt;
         }
         apply_boundary_conditions(U_raw, grid, bc);

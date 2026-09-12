@@ -57,10 +57,8 @@ inline double component_diff(const MHDPrimitive& A, const MHDPrimitive& B, int c
 }
 
 // Limited slope vector δW for cell centered between Wm (i-1) and Wp (i+1).
-inline MHDPrimitive limited_slope(const MHDPrimitive& Wm,
-                                  const MHDPrimitive& W0,
-                                  const MHDPrimitive& Wp,
-                                  SlopeLimiter limiter)
+inline MHDPrimitive limited_slope(const MHDPrimitive& Wm, const MHDPrimitive& W0,
+                                  const MHDPrimitive& Wp, SlopeLimiter limiter)
 {
     MHDPrimitive dW{};
     for (int c = 0; c < 9; ++c) {
@@ -122,13 +120,9 @@ inline bool is_physical_primitive(const MHDPrimitive& W)
 
 // MUSCL interface states from a 4-point stencil (i-2,i-1,i,i+1) for face i-1/2.
 // Left from cell i-1, right from cell i. Falls back to 1st order if unphysical.
-inline void muscl_interface_x(const MHDPrimitive& Wmm,
-                              const MHDPrimitive& Wm,
-                              const MHDPrimitive& W0,
-                              const MHDPrimitive& Wp,
-                              SlopeLimiter limiter,
-                              MHDPrimitive& WL,
-                              MHDPrimitive& WR)
+inline void muscl_interface_x(const MHDPrimitive& Wmm, const MHDPrimitive& Wm,
+                              const MHDPrimitive& W0, const MHDPrimitive& Wp, SlopeLimiter limiter,
+                              MHDPrimitive& WL, MHDPrimitive& WR)
 {
     const MHDPrimitive dWm = limited_slope(Wmm, Wm, W0, limiter);
     const MHDPrimitive dW0 = limited_slope(Wm, W0, Wp, limiter);
@@ -142,13 +136,9 @@ inline void muscl_interface_x(const MHDPrimitive& Wmm,
     }
 }
 
-inline void muscl_interface_y(const MHDPrimitive& Wmm,
-                              const MHDPrimitive& Wm,
-                              const MHDPrimitive& W0,
-                              const MHDPrimitive& Wp,
-                              SlopeLimiter limiter,
-                              MHDPrimitive& WB,
-                              MHDPrimitive& WT)
+inline void muscl_interface_y(const MHDPrimitive& Wmm, const MHDPrimitive& Wm,
+                              const MHDPrimitive& W0, const MHDPrimitive& Wp, SlopeLimiter limiter,
+                              MHDPrimitive& WB, MHDPrimitive& WT)
 {
     muscl_interface_x(Wmm, Wm, W0, Wp, limiter, WB, WT);
 }

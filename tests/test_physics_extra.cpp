@@ -26,8 +26,8 @@ TEST(PhysicsExtra, GLMEnergyFluxIncludesPsiBx)
     MHDPrimitive W{1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 0.0, 0.0, 0.25};
     const double c_h = 2.0;
     const MHDFlux F = physical_flux_x(W, kGamma, c_h);
-    const MHDFlux F0 = physical_flux_x(
-        MHDPrimitive{1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 0.0, 0.0, 0.0}, kGamma, c_h);
+    const MHDFlux F0 =
+        physical_flux_x(MHDPrimitive{1.0, 0.0, 0.0, 0.0, 1.0, 0.5, 0.0, 0.0, 0.0}, kGamma, c_h);
     EXPECT_NEAR(F.energy - F0.energy, W.psi * W.bx, 1e-12);
 }
 

@@ -14,35 +14,53 @@
 
 // High-level owning API for C++ and Python bindings.
 class MHDSolver {
-public:
-    MHDSolver(int nx,
-              int ny,
-              double x_min = 0.0,
-              double x_max = 1.0,
-              double y_min = 0.0,
-              double y_max = 1.0,
-              int ng = 2)
+  public:
+    MHDSolver(int nx, int ny, double x_min = 0.0, double x_max = 1.0, double y_min = 0.0,
+              double y_max = 1.0, int ng = 2)
         : grid_(nx, ny, x_min, x_max, y_min, y_max, ng),
           bc_(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic),
-          U_(grid_.get_size_x(), grid_.get_size_y()),
-          work_(grid_)
+          U_(grid_.get_size_x(), grid_.get_size_y()), work_(grid_)
     {
         if (ng < 2) {
             throw std::invalid_argument("MHDSolver requires ng >= 2");
         }
     }
 
-    Grid2D& grid() { return grid_; }
-    const Grid2D& grid() const { return grid_; }
+    Grid2D& grid()
+    {
+        return grid_;
+    }
+    const Grid2D& grid() const
+    {
+        return grid_;
+    }
 
-    StateField& state() { return U_; }
-    const StateField& state() const { return U_; }
+    StateField& state()
+    {
+        return U_;
+    }
+    const StateField& state() const
+    {
+        return U_;
+    }
 
-    SolveParams& params() { return params_; }
-    const SolveParams& params() const { return params_; }
+    SolveParams& params()
+    {
+        return params_;
+    }
+    const SolveParams& params() const
+    {
+        return params_;
+    }
 
-    BoundaryConditions& boundary_conditions() { return bc_; }
-    const BoundaryConditions& boundary_conditions() const { return bc_; }
+    BoundaryConditions& boundary_conditions()
+    {
+        return bc_;
+    }
+    const BoundaryConditions& boundary_conditions() const
+    {
+        return bc_;
+    }
 
     void set_periodic_bc()
     {
@@ -54,21 +72,57 @@ public:
         bc_ = BoundaryConditions(BoundaryConditionType::Outflow, BoundaryConditionType::Outflow);
     }
 
-    void set_gamma(double gamma) { params_.gamma = gamma; }
-    void set_cfl(double cfl) { params_.cfl = cfl; }
-    void set_glm_alpha(double alpha) { params_.glm_alpha = alpha; }
-    void set_limiter_minmod() { params_.limiter = SlopeLimiter::Minmod; }
-    void set_limiter_mc() { params_.limiter = SlopeLimiter::MC; }
+    void set_gamma(double gamma)
+    {
+        params_.gamma = gamma;
+    }
+    void set_cfl(double cfl)
+    {
+        params_.cfl = cfl;
+    }
+    void set_glm_alpha(double alpha)
+    {
+        params_.glm_alpha = alpha;
+    }
+    void set_limiter_minmod()
+    {
+        params_.limiter = SlopeLimiter::Minmod;
+    }
+    void set_limiter_mc()
+    {
+        params_.limiter = SlopeLimiter::MC;
+    }
 
-    void set_ideal() { params_.nonideal = NonIdealConfig::ideal(); }
+    void set_ideal()
+    {
+        params_.nonideal = NonIdealConfig::ideal();
+    }
 
-    void enable_ohmic(double eta) { params_.nonideal.enable_ohmic(eta); }
-    void enable_hall(double eta) { params_.nonideal.enable_hall(eta); }
-    void enable_ambipolar(double eta) { params_.nonideal.enable_ambipolar(eta); }
+    void enable_ohmic(double eta)
+    {
+        params_.nonideal.enable_ohmic(eta);
+    }
+    void enable_hall(double eta)
+    {
+        params_.nonideal.enable_hall(eta);
+    }
+    void enable_ambipolar(double eta)
+    {
+        params_.nonideal.enable_ambipolar(eta);
+    }
 
-    void disable_ohmic() { params_.nonideal.disable_ohmic(); }
-    void disable_hall() { params_.nonideal.disable_hall(); }
-    void disable_ambipolar() { params_.nonideal.disable_ambipolar(); }
+    void disable_ohmic()
+    {
+        params_.nonideal.disable_ohmic();
+    }
+    void disable_hall()
+    {
+        params_.nonideal.disable_hall();
+    }
+    void disable_ambipolar()
+    {
+        params_.nonideal.disable_ambipolar();
+    }
 
     void initialize(const std::string& name)
     {
@@ -117,11 +171,23 @@ public:
         return run(t_abs - t_);
     }
 
-    double time() const { return t_; }
-    int steps() const { return steps_; }
-    double c_h() const { return last_c_h_; }
+    double time() const
+    {
+        return t_;
+    }
+    int steps() const
+    {
+        return steps_;
+    }
+    double c_h() const
+    {
+        return last_c_h_;
+    }
 
-    double max_div_b() const { return max_abs_div_b(U_, grid_); }
+    double max_div_b() const
+    {
+        return max_abs_div_b(U_, grid_);
+    }
 
     // Flat row-major copies (ny * nx_tot), including ghosts. Useful for Python/numpy.
     std::vector<double> copy_field(const std::string& name) const
@@ -151,13 +217,28 @@ public:
         return *src;
     }
 
-    int size_x() const { return grid_.get_size_x(); }
-    int size_y() const { return grid_.get_size_y(); }
-    int nx() const { return grid_.nx; }
-    int ny() const { return grid_.ny; }
-    int ng() const { return grid_.ng; }
+    int size_x() const
+    {
+        return grid_.get_size_x();
+    }
+    int size_y() const
+    {
+        return grid_.get_size_y();
+    }
+    int nx() const
+    {
+        return grid_.nx;
+    }
+    int ny() const
+    {
+        return grid_.ny;
+    }
+    int ng() const
+    {
+        return grid_.ng;
+    }
 
-private:
+  private:
     Grid2D grid_;
     BoundaryConditions bc_;
     StateField U_;

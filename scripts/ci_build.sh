@@ -10,6 +10,7 @@ BUILD_DIR="${BUILD_DIR:-build-ci}"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 CXX_COMPILER="${CXX_COMPILER:-$(command -v clang++ || command -v g++)}"
 JOBS="${JOBS:-$( (command -v nproc >/dev/null && nproc) || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
+BUILD_BENCHMARKS="${BUILD_BENCHMARKS:-ON}"
 GENERATOR=()
 if command -v ninja >/dev/null 2>&1; then
   GENERATOR=(-G Ninja)
@@ -21,14 +22,21 @@ cmake -S . -B "$BUILD_DIR" "${GENERATOR[@]}" \
   -DCMAKE_CXX_COMPILER="$CXX_COMPILER" \
   -DMHD_BUILD_TESTS=ON \
   -DMHD_BUILD_PYTHON=ON \
+  -DMHD_BUILD_BENCHMARKS="$BUILD_BENCHMARKS" \
   -DMHD_NATIVE_ARCH=OFF \
   -DMHD_ENABLE_LTO=OFF
 
 echo "==> Build"
 cmake --build "$BUILD_DIR" --config "$BUILD_TYPE" -j "$JOBS"
 
-echo "==> Test"
-ctest --test-dir "$BUILD_DIR" --output-on-failure --build-config "$BUILD_TYPE" --parallel "$JOBS"
+echo "==> Test (unit + regression)"
+ctest --test-dir "$BUILD_DIR" --output-on-failure --build-config "$BUILD_TYPE" --parallel "$JOBS" -LE benchmark
+
+if [[ "$BUILD_BENCHMARKS" == ON ]]; then
+  echo "==> Benchmarks (quick)"
+  ctest --test-dir "$BUILD_DIR" --output-on-failure -L benchmark || true
+  "$BUILD_DIR/benchmarks/mhd_bench" --benchmark_filter='BM_OrszagTang_Run/32' --benchmark_min_time=0.05s || true
+fi
 
 echo "==> Python smoke"
 export PYTHONPATH="$ROOT/$BUILD_DIR/python${PYTHONPATH:+:$PYTHONPATH}"

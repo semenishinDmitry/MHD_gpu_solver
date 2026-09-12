@@ -20,10 +20,13 @@ TEST(BoundaryConditions, PeriodicCopiesInteriorToGhosts)
     }
 
     apply_boundary_conditions(
-        U, grid, BoundaryConditions(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic));
+        U, grid,
+        BoundaryConditions(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic));
 
-    EXPECT_DOUBLE_EQ(U.get_state(0, grid.j_begin()).rho, U.get_state(grid.nx + 0, grid.j_begin()).rho);
-    EXPECT_DOUBLE_EQ(U.get_state(1, grid.j_begin()).psi, U.get_state(grid.nx + 1, grid.j_begin()).psi);
+    EXPECT_DOUBLE_EQ(U.get_state(0, grid.j_begin()).rho,
+                     U.get_state(grid.nx + 0, grid.j_begin()).rho);
+    EXPECT_DOUBLE_EQ(U.get_state(1, grid.j_begin()).psi,
+                     U.get_state(grid.nx + 1, grid.j_begin()).psi);
     EXPECT_DOUBLE_EQ(U.get_state(grid.ng + grid.nx, grid.j_begin()).rho,
                      U.get_state(grid.ng, grid.j_begin()).rho);
 }
@@ -42,7 +45,8 @@ TEST(BoundaryConditions, OutflowCopiesNearestInterior)
     }
 
     apply_boundary_conditions(
-        U, grid, BoundaryConditions(BoundaryConditionType::Outflow, BoundaryConditionType::Outflow));
+        U, grid,
+        BoundaryConditions(BoundaryConditionType::Outflow, BoundaryConditionType::Outflow));
 
     EXPECT_DOUBLE_EQ(U.get_state(0, grid.j_begin()).rho, U.get_state(grid.ng, grid.j_begin()).rho);
     EXPECT_DOUBLE_EQ(U.get_state(grid.ng + grid.nx, grid.j_begin()).rho,

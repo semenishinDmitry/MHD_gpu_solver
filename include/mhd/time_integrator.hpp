@@ -22,22 +22,18 @@ struct TimeIntegratorWorkspace {
 
     TimeIntegratorWorkspace(int nx_tot, int ny_tot)
         : U_star(nx_tot, ny_tot), rhs(nx_tot, ny_tot), rhs_work(nx_tot, ny_tot)
-    {}
+    {
+    }
 
     explicit TimeIntegratorWorkspace(const Grid2D& grid)
         : TimeIntegratorWorkspace(grid.get_size_x(), grid.get_size_y())
-    {}
+    {
+    }
 };
 
-inline void ssp_rk2_step(StateField& U,
-                         TimeIntegratorWorkspace& work,
-                         const Grid2D& grid,
-                         const BoundaryConditions& bc,
-                         double gamma,
-                         double dt,
-                         double c_h,
-                         double glm_alpha,
-                         SlopeLimiter limiter,
+inline void ssp_rk2_step(StateField& U, TimeIntegratorWorkspace& work, const Grid2D& grid,
+                         const BoundaryConditions& bc, double gamma, double dt, double c_h,
+                         double glm_alpha, SlopeLimiter limiter,
                          const NonIdealConfig& nonideal = NonIdealConfig::ideal())
 {
     if (dt <= 0.0) {
@@ -49,7 +45,8 @@ inline void ssp_rk2_step(StateField& U,
     field_xpay(work.U_star, U, dt, work.rhs);
 
     apply_boundary_conditions(work.U_star, grid, bc);
-    compute_rhs(work.U_star, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter, nonideal);
+    compute_rhs(work.U_star, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter,
+                nonideal);
     field_ssp_rk2_combine(U, work.U_star, work.rhs, dt);
 }
 
@@ -69,11 +66,8 @@ struct SolveResult {
     double c_h = 0.0;
 };
 
-inline SolveResult solve(StateField& U,
-                         TimeIntegratorWorkspace& work,
-                         const Grid2D& grid,
-                         const BoundaryConditions& bc,
-                         const SolveParams& params)
+inline SolveResult solve(StateField& U, TimeIntegratorWorkspace& work, const Grid2D& grid,
+                         const BoundaryConditions& bc, const SolveParams& params)
 {
     if (params.t_end < 0.0) {
         throw std::invalid_argument("t_end must be non-negative");
@@ -93,15 +87,7 @@ inline SolveResult solve(StateField& U,
         result.c_h = cfl.c_h;
 
         double dt = std::min(cfl.dt, params.t_end - result.t);
-        ssp_rk2_step(U,
-                     work,
-                     grid,
-                     bc,
-                     params.gamma,
-                     dt,
-                     cfl.c_h,
-                     params.glm_alpha,
-                     params.limiter,
+        ssp_rk2_step(U, work, grid, bc, params.gamma, dt, cfl.c_h, params.glm_alpha, params.limiter,
                      params.nonideal);
 
         result.t += dt;

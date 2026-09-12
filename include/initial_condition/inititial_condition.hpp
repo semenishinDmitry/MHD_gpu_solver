@@ -11,12 +11,7 @@
 
 using InitialCondition2D = MHDPrimitive (*)(double x, double y);
 
-enum class InitialConditionType {
-    Uniform,
-    SineWave,
-    BlastWave,
-    OrszagTang
-};
+enum class InitialConditionType { Uniform, SineWave, BlastWave, OrszagTang };
 
 inline MHDPrimitive uniform_initial_condition(double /*x*/, double /*y*/)
 {
@@ -57,8 +52,7 @@ inline MHDPrimitive orszag_tang_initial_condition(double x, double y)
     return W;
 }
 
-inline void initialize_state_field(StateField& state_field,
-                                   const Grid2D& grid,
+inline void initialize_state_field(StateField& state_field, const Grid2D& grid,
                                    InitialConditionType initial_condition_type,
                                    double gamma = 5.0 / 3.0)
 {
@@ -98,10 +92,8 @@ inline double max_abs_div_b(const StateField& U, const Grid2D& grid)
 
     for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
         for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
-            const double dbx =
-                (U.bx[U.index(i + 1, j)] - U.bx[U.index(i - 1, j)]) * inv_2dx;
-            const double dby =
-                (U.by[U.index(i, j + 1)] - U.by[U.index(i, j - 1)]) * inv_2dy;
+            const double dbx = (U.bx[U.index(i + 1, j)] - U.bx[U.index(i - 1, j)]) * inv_2dx;
+            const double dby = (U.by[U.index(i, j + 1)] - U.by[U.index(i, j - 1)]) * inv_2dy;
             max_abs = std::max(max_abs, std::abs(dbx + dby));
         }
     }

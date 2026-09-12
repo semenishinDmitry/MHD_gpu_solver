@@ -23,6 +23,7 @@ add_executable(mhd_tests
     test_physics_extra.cpp
     test_solver_api.cpp
     test_performance_invariants.cpp
+    test_regression_golden.cpp
 )
 
 target_link_libraries(mhd_tests PRIVATE
@@ -30,6 +31,10 @@ target_link_libraries(mhd_tests PRIVATE
     GTest::gtest_main
 )
 mhd_apply_flags(mhd_tests)
+
+target_compile_definitions(mhd_tests PRIVATE
+    MHD_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/goldens"
+)
 
 include(GoogleTest)
 gtest_discover_tests(mhd_tests)

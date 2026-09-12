@@ -17,37 +17,56 @@ struct Grid2D {
 
     Grid2D() = default;
 
-    Grid2D(const int nx_,
-           const int ny_,
-           const double x_min_,
-           const double x_max_,
-           const double y_min_,
-           const double y_max_,
-           const int ng_ = 2)
-        : nx(nx_),
-          ny(ny_),
-          ng(ng_),
-          x_min(x_min_),
-          x_max(x_max_),
-          y_min(y_min_),
-          y_max(y_max_)
+    Grid2D(const int nx_, const int ny_, const double x_min_, const double x_max_,
+           const double y_min_, const double y_max_, const int ng_ = 2)
+        : nx(nx_), ny(ny_), ng(ng_), x_min(x_min_), x_max(x_max_), y_min(y_min_), y_max(y_max_)
     {
         dx = (x_max - x_min) / static_cast<double>(nx);
         dy = (y_max - y_min) / static_cast<double>(ny);
     }
 
-    double get_dx() const { return dx; }
-    double get_dy() const { return dy; }
+    double get_dx() const
+    {
+        return dx;
+    }
+    double get_dy() const
+    {
+        return dy;
+    }
 
     // Cell-center coordinates for global index (including ghosts).
-    double get_x(int i) const { return x_min + (i - ng + 0.5) * dx; }
-    double get_y(int j) const { return y_min + (j - ng + 0.5) * dy; }
+    double get_x(int i) const
+    {
+        return x_min + (i - ng + 0.5) * dx;
+    }
+    double get_y(int j) const
+    {
+        return y_min + (j - ng + 0.5) * dy;
+    }
 
-    int get_size_x() const { return nx + 2 * ng; }
-    int get_size_y() const { return ny + 2 * ng; }
+    int get_size_x() const
+    {
+        return nx + 2 * ng;
+    }
+    int get_size_y() const
+    {
+        return ny + 2 * ng;
+    }
 
-    int i_begin() const { return ng; }
-    int i_end() const { return ng + nx; }
-    int j_begin() const { return ng; }
-    int j_end() const { return ng + ny; }
+    int i_begin() const
+    {
+        return ng;
+    }
+    int i_end() const
+    {
+        return ng + nx;
+    }
+    int j_begin() const
+    {
+        return ng;
+    }
+    int j_end() const
+    {
+        return ng + ny;
+    }
 };

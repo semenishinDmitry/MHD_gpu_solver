@@ -90,10 +90,8 @@ inline void field_xpay(StateField& out, const StateField& x, double a, const Sta
     }
 }
 
-inline void field_ssp_rk2_combine(StateField& U,
-                                 const StateField& U_star,
-                                 const StateField& rhs,
-                                 double dt)
+inline void field_ssp_rk2_combine(StateField& U, const StateField& U_star, const StateField& rhs,
+                                  double dt)
 {
     ensure_same_shape(U, U_star);
     ensure_same_shape(U, rhs);

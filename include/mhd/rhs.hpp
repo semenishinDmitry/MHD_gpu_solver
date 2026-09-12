@@ -26,13 +26,12 @@ struct RHSWorkspace {
     RHSWorkspace() = default;
 
     RHSWorkspace(int nx_tot, int ny_tot)
-        : prim(nx_tot, ny_tot),
-          fx(nx_tot, ny_tot),
-          fy(nx_tot, ny_tot),
+        : prim(nx_tot, ny_tot), fx(nx_tot, ny_tot), fy(nx_tot, ny_tot),
           Jx(static_cast<std::size_t>(nx_tot) * static_cast<std::size_t>(ny_tot), 0.0),
           Jy(static_cast<std::size_t>(nx_tot) * static_cast<std::size_t>(ny_tot), 0.0),
           Jz(static_cast<std::size_t>(nx_tot) * static_cast<std::size_t>(ny_tot), 0.0)
-    {}
+    {
+    }
 };
 
 inline void fill_primitives(const StateField& U, PrimitiveField& W, double gamma)
@@ -40,8 +39,8 @@ inline void fill_primitives(const StateField& U, PrimitiveField& W, double gamma
     const std::size_t n = U.rho.size();
     for (std::size_t idx = 0; idx < n; ++idx) {
         const MHDState Ucell{
-            U.rho[idx], U.mx[idx], U.my[idx], U.mz[idx], U.energy[idx],
-            U.bx[idx], U.by[idx], U.bz[idx], U.psi[idx],
+            U.rho[idx], U.mx[idx], U.my[idx], U.mz[idx],  U.energy[idx],
+            U.bx[idx],  U.by[idx], U.bz[idx], U.psi[idx],
         };
         const MHDPrimitive P = to_primitive(Ucell, gamma);
         W.rho[idx] = P.rho;
@@ -74,20 +73,15 @@ inline MHDFlux load_flux(const StateField& F, int i, int j)
 {
     const int idx = F.index(i, j);
     return MHDFlux{
-        F.rho[idx], F.mx[idx], F.my[idx], F.mz[idx], F.energy[idx],
-        F.bx[idx], F.by[idx], F.bz[idx], F.psi[idx],
+        F.rho[idx], F.mx[idx], F.my[idx], F.mz[idx],  F.energy[idx],
+        F.bx[idx],  F.by[idx], F.bz[idx], F.psi[idx],
     };
 }
 
 // Ideal / non-ideal GLM-MHD spatial operator.
 // Non-ideal Ohmic / Hall / Ambipolar terms are added only when enabled in `nonideal`.
-inline void compute_rhs(const StateField& U,
-                        StateField& rhs,
-                        const Grid2D& grid,
-                        RHSWorkspace& work,
-                        double gamma,
-                        double c_h,
-                        double glm_alpha,
+inline void compute_rhs(const StateField& U, StateField& rhs, const Grid2D& grid,
+                        RHSWorkspace& work, double gamma, double c_h, double glm_alpha,
                         SlopeLimiter limiter,
                         const NonIdealConfig& nonideal = NonIdealConfig::ideal())
 {
@@ -145,13 +139,12 @@ inline void compute_rhs(const StateField& U,
     // Ideal path: skip all non-ideal work.
     if (nonideal.any()) {
         compute_current(W, grid, work.Jx.data(), work.Jy.data(), work.Jz.data());
-        add_nonideal_face_fluxes(
-            W, work.fx, work.fy, grid, work.Jx.data(), work.Jy.data(), work.Jz.data(), nonideal);
+        add_nonideal_face_fluxes(W, work.fx, work.fy, grid, work.Jx.data(), work.Jy.data(),
+                                 work.Jz.data(), nonideal);
     }
 
     const double h = std::min(grid.dx, grid.dy);
-    const double psi_damp =
-        (c_h > 0.0 && glm_alpha > 0.0) ? (c_h * glm_alpha / h) : 0.0;
+    const double psi_damp = (c_h > 0.0 && glm_alpha > 0.0) ? (c_h * glm_alpha / h) : 0.0;
 
     for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
         for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
