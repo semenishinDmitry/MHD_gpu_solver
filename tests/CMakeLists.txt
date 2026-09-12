@@ -18,6 +18,7 @@ add_executable(mhd_tests
     test_mhd_operator.cpp
     test_time_integrator.cpp
     test_muscl_glm.cpp
+    test_nonideal.cpp
 )
 
 target_link_libraries(mhd_tests PRIVATE

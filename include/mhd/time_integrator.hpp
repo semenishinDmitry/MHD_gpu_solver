@@ -6,6 +6,7 @@
 #include "mhd/field_ops.hpp"
 #include "mhd/mhd_types.hpp"
 #include "mhd/rhs.hpp"
+#include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
 #include <algorithm>
@@ -36,18 +37,19 @@ inline void ssp_rk2_step(StateField& U,
                          double dt,
                          double c_h,
                          double glm_alpha,
-                         SlopeLimiter limiter)
+                         SlopeLimiter limiter,
+                         const NonIdealConfig& nonideal = NonIdealConfig::ideal())
 {
     if (dt <= 0.0) {
         throw std::invalid_argument("ssp_rk2_step requires positive dt");
     }
 
     apply_boundary_conditions(U, grid, bc);
-    compute_rhs(U, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter);
+    compute_rhs(U, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter, nonideal);
     field_xpay(work.U_star, U, dt, work.rhs);
 
     apply_boundary_conditions(work.U_star, grid, bc);
-    compute_rhs(work.U_star, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter);
+    compute_rhs(work.U_star, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter, nonideal);
     field_ssp_rk2_combine(U, work.U_star, work.rhs, dt);
 }
 
@@ -57,6 +59,7 @@ struct SolveParams {
     double gamma = 5.0 / 3.0;
     double glm_alpha = 0.1;
     SlopeLimiter limiter = SlopeLimiter::MC;
+    NonIdealConfig nonideal = NonIdealConfig::ideal();
     int max_steps = 1'000'000;
 };
 
@@ -86,11 +89,20 @@ inline SolveResult solve(StateField& U,
     SolveResult result{};
     while (result.t < params.t_end && result.steps < params.max_steps) {
         apply_boundary_conditions(U, grid, bc);
-        const CFLResult cfl = compute_cfl_dt(U, grid, params.gamma, params.cfl);
+        const CFLResult cfl = compute_cfl_dt(U, grid, params.gamma, params.cfl, params.nonideal);
         result.c_h = cfl.c_h;
 
         double dt = std::min(cfl.dt, params.t_end - result.t);
-        ssp_rk2_step(U, work, grid, bc, params.gamma, dt, cfl.c_h, params.glm_alpha, params.limiter);
+        ssp_rk2_step(U,
+                     work,
+                     grid,
+                     bc,
+                     params.gamma,
+                     dt,
+                     cfl.c_h,
+                     params.glm_alpha,
+                     params.limiter,
+                     params.nonideal);
 
         result.t += dt;
         ++result.steps;

@@ -3,6 +3,7 @@
 #include "grid/grid.hpp"
 #include "mhd/mhd_physics.hpp"
 #include "mhd/mhd_types.hpp"
+#include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
 #include <algorithm>
@@ -15,15 +16,15 @@ struct CFLResult {
     double c_h = 0.0; // max_ij max(|v| + c_f)
 };
 
-// Multidimensional CFL including GLM cleaning speed:
-//   c_h = max_ij max(|v_x| + c_{f,x}, |v_y| + c_{f,y})
-//   dt  = cfl / max_ij( max(|v_x|+c_{f,x}, c_h)/dx + max(|v_y|+c_{f,y}, c_h)/dy )
-//
-// With a global c_h this reduces to dt = cfl / (c_h/dx + c_h/dy).
+// Hyperbolic + optional parabolic/dispersive CFL for non-ideal terms.
+//   dt = min(dt_hyp, dt_diff)
+//   dt_hyp  = cfl / (c_h/dx + c_h/dy)
+//   dt_diff = cfl * h^2 / (2 * d * η_max),  d=2, h=min(dx,dy)
 inline CFLResult compute_cfl_dt(const StateField& U,
                                const Grid2D& grid,
                                double gamma,
-                               double cfl_number)
+                               double cfl_number,
+                               const NonIdealConfig& nonideal = NonIdealConfig::ideal())
 {
     if (cfl_number <= 0.0) {
         throw std::invalid_argument("CFL number must be positive");
@@ -67,10 +68,17 @@ inline CFLResult compute_cfl_dt(const StateField& U,
 
     if (c_h <= 0.0) {
         result.dt = std::numeric_limits<double>::infinity();
-        return result;
+    } else {
+        result.dt = cfl_number / (c_h * inv_dx + c_h * inv_dy);
     }
 
-    // Global cleaning waves at ±c_h dominate the signal estimate.
-    result.dt = cfl_number / (c_h * inv_dx + c_h * inv_dy);
+    const double eta_max = nonideal.max_diffusivity();
+    if (eta_max > 0.0) {
+        constexpr double ndim = 2.0;
+        const double h = std::min(grid.dx, grid.dy);
+        const double dt_diff = cfl_number * h * h / (2.0 * ndim * eta_max);
+        result.dt = std::min(result.dt, dt_diff);
+    }
+
     return result;
 }
