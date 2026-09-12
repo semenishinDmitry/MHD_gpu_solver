@@ -270,7 +270,7 @@ MathJax = {
   </aside>
   <main>
     <div class="eq-box">
-      <h2>Equations</h2>
+      <h2 id="eqTitle">Equations</h2>
       <div id="equations" class="mj"></div>
       <div class="note" id="eqNote"></div>
     </div>
@@ -285,24 +285,52 @@ MathJax = {
 <script>
 let playing = false, playTimer = null, nFrames = 0, times = [];
 
+function formatGammaAlpha(gammaStr, alphaStr) {
+  const g = parseFloat(gammaStr);
+  const a = parseFloat(alphaStr);
+  const gTex = (Number.isFinite(g) && Math.abs(g - 5 / 3) < 1e-6)
+    ? '5/3 \\\\approx 1.6667'
+    : (Number.isFinite(g) ? g.toPrecision(6) : gammaStr);
+  const aTex = Number.isFinite(a) ? a.toPrecision(6) : alphaStr;
+  return { gTex, aTex };
+}
+
 function updateEquations() {
   const ohmic = document.getElementById('ohmic').checked;
   const hall = document.getElementById('hall').checked;
   const amb = document.getElementById('amb').checked;
   const ni = ohmic || hall || amb;
-  const gamma = document.getElementById('gamma').value || '\\gamma';
-  const alpha = document.getElementById('glm').value || '\\alpha';
+  const { gTex, aTex } = formatGammaAlpha(
+    document.getElementById('gamma').value,
+    document.getElementById('glm').value
+  );
 
-  let faradayRhs = '';
   let eDef = '';
+  let energyNi = '';
+  let inductionNi = '';
   if (ni) {
-    faradayRhs = ' - \\\\nabla\\\\times\\\\mathbf{E}_{\\\\mathrm{ni}}';
     const terms = [];
     if (ohmic) terms.push('\\\\eta_{\\\\mathrm{ohm}}\\\\,\\\\mathbf{J}');
     if (hall) terms.push('\\\\eta_{\\\\mathrm{Hall}}\\\\,\\\\mathbf{J}\\\\times\\\\hat{\\\\mathbf{B}}');
     if (amb) terms.push('\\\\eta_{\\\\mathrm{A}}\\\\,(\\\\mathbf{J}\\\\times\\\\mathbf{B})\\\\times\\\\mathbf{B}/B^2');
     eDef = '\\\\[\\\\mathbf{E}_{\\\\mathrm{ni}} = ' + terms.join(' + ') + ',\\\\quad \\\\mathbf{J}=\\\\nabla\\\\times\\\\mathbf{B}.\\\\]';
+    // Poynting contribution for Faraday ∂t B = -∇×E: flux uses B×E_ni (= -E_ni×B)
+    energyNi = ' + \\\\mathbf{B}\\\\times\\\\mathbf{E}_{\\\\mathrm{ni}}';
+    inductionNi = ' - \\\\nabla\\\\times\\\\mathbf{E}_{\\\\mathrm{ni}}';
   }
+
+  const parts = [];
+  if (ohmic) parts.push('Resistive');
+  if (hall) parts.push('Hall');
+  if (amb) parts.push('Ambipolar');
+  const title = ni
+    ? ('Non-Ideal GLM-MHD (' + parts.join(' / ') + ')')
+    : 'Ideal GLM-MHD';
+  const noteFinal = ni
+    ? ('Non-Ideal GLM-MHD (' + parts.join(' / ') + ') — 2D finite-volume, MUSCL + HLL, SSP-RK2.')
+    : 'Ideal GLM-MHD (2D finite-volume, MUSCL + HLL, SSP-RK2).';
+
+  document.getElementById('eqTitle').textContent = title;
 
   const html = `
 \\\\[
@@ -321,15 +349,13 @@ function updateEquations() {
   + \\\\nabla\\\\cdot\\\\!\\\\big(
       (E + p + B^2/2)\\\\mathbf{v}
       - (\\\\mathbf{v}\\\\cdot\\\\mathbf{B})\\\\mathbf{B}
-      + \\\\psi\\\\mathbf{B}
-    \\\\big)
-  ${ni ? '+ \\\\nabla\\\\cdot(\\\\mathbf{E}_{\\\\mathrm{ni}}\\\\times\\\\mathbf{B})' : ''} = 0
+      + \\\\psi\\\\mathbf{B}${energyNi}
+    \\\\big) = 0
 \\\\]
 \\\\[
 \\\\partial_t\\\\mathbf{B}
-  + \\\\nabla\\\\cdot(\\\\mathbf{v}\\\\mathbf{B} - \\\\mathbf{B}\\\\mathbf{v})
-  + \\\\nabla\\\\psi
-  ${faradayRhs} = 0
+  + \\\\nabla\\\\cdot(\\\\mathbf{v}\\\\mathbf{B} - \\\\mathbf{B}\\\\mathbf{v} + \\\\psi\\\\,\\\\mathbf{I})
+  ${inductionNi} = 0
 \\\\]
 \\\\[
 \\\\partial_t\\\\psi + c_h^2\\\\,\\\\nabla\\\\cdot\\\\mathbf{B}
@@ -338,14 +364,12 @@ function updateEquations() {
 ${eDef}
 \\\\[
 E = \\\\frac{p}{\\\\gamma-1} + \\\\tfrac12\\\\rho|\\\\mathbf{v}|^2 + \\\\tfrac12|\\\\mathbf{B}|^2,
-\\\\quad \\\\gamma=${gamma},\\; \\\\alpha=${alpha}
+\\\\quad \\\\gamma = ${gTex}, \\\\quad \\\\alpha = ${aTex}
 \\\\]
 `;
   const el = document.getElementById('equations');
   el.innerHTML = html;
-  document.getElementById('eqNote').textContent = ni
-    ? 'Ideal GLM-MHD + selected non-ideal terms (2D finite-volume, MUSCL + HLL, SSP-RK2).'
-    : 'Ideal GLM-MHD with Dedner hyperbolic/parabolic divergence cleaning (2D finite-volume, MUSCL + HLL, SSP-RK2).';
+  document.getElementById('eqNote').textContent = noteFinal;
   if (window.MathJax && MathJax.typesetPromise) {
     MathJax.typesetClear([el]);
     MathJax.typesetPromise([el]).catch(() => {});

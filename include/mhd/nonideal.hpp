@@ -106,6 +106,9 @@ inline Vec3 avg3(double ax, double ay, double az, double bx, double by, double b
 
 // Add -∇·F_NI to magnetic and energy RHS via face electric fields.
 // Hyperbolic fluxes are already stored in fx/fy; we accumulate resistive fluxes there.
+// Induction: Faraday ∂t B = -∇×E (face fluxes of E).
+// Energy: Poynting contribution written as B×E_ni (= -E_ni×B), consistent with
+// ∂t E + ∇·(... + B×E_ni) = 0 in the model equations.
 inline void add_nonideal_face_fluxes(const PrimitiveField& W,
                                      StateField& fx,
                                      StateField& fy,
@@ -128,10 +131,10 @@ inline void add_nonideal_face_fluxes(const PrimitiveField& W,
             const Vec3 E = nonideal_electric_field(J, B, cfg);
 
             const int fidx = fx.index(i, j);
-            // F_by += -Ez, F_bz += +Ey, F_E += (E × B)_x = Ey Bz - Ez By
+            // F_by += -Ez, F_bz += +Ey, F_E += (B × E)_x = By Ez - Bz Ey
             fx.by[fidx] += -E.z;
             fx.bz[fidx] += E.y;
-            fx.energy[fidx] += E.y * B.z - E.z * B.y;
+            fx.energy[fidx] += B.y * E.z - B.z * E.y;
         }
     }
 
@@ -146,10 +149,10 @@ inline void add_nonideal_face_fluxes(const PrimitiveField& W,
             const Vec3 E = nonideal_electric_field(J, B, cfg);
 
             const int fidx = fy.index(i, j);
-            // F_bx += +Ez, F_bz += -Ex, F_E += (E × B)_y = Ez Bx - Ex Bz
+            // F_bx += +Ez, F_bz += -Ex, F_E += (B × E)_y = Bz Ex - Bx Ez
             fy.bx[fidx] += E.z;
             fy.bz[fidx] += -E.x;
-            fy.energy[fidx] += E.z * B.x - E.x * B.z;
+            fy.energy[fidx] += B.z * E.x - B.x * E.z;
         }
     }
 }
