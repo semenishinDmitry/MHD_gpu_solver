@@ -1,0 +1,169 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_TYPE: Release
+  # Portable binaries — never use -march=native on CI runners.
+  MHD_NATIVE_ARCH: "OFF"
+  MHD_BUILD_TESTS: "ON"
+  MHD_BUILD_PYTHON: "ON"
+
+jobs:
+  build-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu Clang
+            os: ubuntu-latest
+            cxx: clang++
+            c_compiler: clang
+          - name: Ubuntu GCC
+            os: ubuntu-latest
+            cxx: g++
+            c_compiler: gcc
+          - name: macOS AppleClang
+            os: macos-latest
+            cxx: clang++
+            c_compiler: clang
+          - name: Windows MSVC
+            os: windows-latest
+            cxx: cl
+            c_compiler: cl
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          if [[ "${{ matrix.cxx }}" == clang++ ]]; then
+            sudo apt-get install -y clang lld
+          fi
+
+      - name: Install macOS packages
+        if: runner.os == 'macOS'
+        run: brew install ninja || true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python deps
+        run: python -m pip install --upgrade pip numpy
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+            -DMHD_BUILD_TESTS=${{ env.MHD_BUILD_TESTS }} \
+            -DMHD_BUILD_PYTHON=${{ env.MHD_BUILD_PYTHON }} \
+            -DMHD_NATIVE_ARCH=${{ env.MHD_NATIVE_ARCH }} \
+            -DMHD_ENABLE_LTO=OFF
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          cmake -S . -B build -G Ninja ^
+            -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
+            -DMHD_BUILD_TESTS=%MHD_BUILD_TESTS% ^
+            -DMHD_BUILD_PYTHON=%MHD_BUILD_PYTHON% ^
+            -DMHD_NATIVE_ARCH=%MHD_NATIVE_ARCH% ^
+            -DMHD_ENABLE_LTO=OFF
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} -j 4
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --build-config ${{ env.BUILD_TYPE }} --parallel 4
+
+      - name: Python import smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOD="$(find build -name 'mhd_solver*.so' -o -name 'mhd_solver*.pyd' 2>/dev/null | head -n 1 || true)"
+          if [[ -z "${MOD}" ]]; then
+            echo "mhd_solver module not found under build/" >&2
+            find build -maxdepth 4 -type f | head -n 80 >&2 || true
+            exit 1
+          fi
+          export PYTHONPATH="$(cd "$(dirname "$MOD")" && pwd)${PYTHONPATH:+:$PYTHONPATH}"
+          echo "PYTHONPATH=$PYTHONPATH"
+          python - <<'PY'
+          import mhd_solver as mhd
+          s = mhd.MHDSolver(16, 16)
+          s.initialize("orszag_tang")
+          s.run(0.01)
+          print("ok", s.time, s.steps, float(s.max_div_b()))
+          PY
+
+      - name: Python example
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOD="$(find build -name 'mhd_solver*.so' -o -name 'mhd_solver*.pyd' 2>/dev/null | head -n 1)"
+          export PYTHONPATH="$(cd "$(dirname "$MOD")" && pwd)"
+          python examples/python/orszag_tang.py
+
+  # Extra check: Debug build on Linux (catches more asserts / UB patterns)
+  debug-asan:
+    name: Ubuntu Clang Debug + ASan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang lld
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure Debug + ASan
+        run: |
+          cmake -S . -B build-asan -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DMHD_BUILD_TESTS=ON \
+            -DMHD_BUILD_PYTHON=OFF \
+            -DMHD_NATIVE_ARCH=OFF
+
+      - name: Build
+        run: cmake --build build-asan -j 4
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build-asan --output-on-failure --parallel 4

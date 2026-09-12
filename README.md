@@ -1,5 +1,7 @@
 # MHD Solver
 
+[![CI](https://github.com/semenishinDmitry/MHD_gpu_solver/actions/workflows/ci.yml/badge.svg)](https://github.com/semenishinDmitry/MHD_gpu_solver/actions/workflows/ci.yml)
+
 2D ideal / non-ideal GLM-MHD finite-volume solver (MUSCL + HLL + SSP-RK2), with optional Python bindings.
 
 ## Quick start (recommended)
@@ -40,6 +42,24 @@ Useful options:
 - `-DMHD_BUILD_PYTHON=OFF` — skip pybind11
 - `-DMHD_BUILD_TESTS=OFF` — skip GoogleTest
 
+## Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
+
+| Job | What it checks |
+|-----|----------------|
+| Ubuntu Clang / GCC | Release build, `ctest`, Python module smoke + example |
+| macOS AppleClang | Same |
+| Windows MSVC | Same |
+| Ubuntu Clang Debug + ASan/UBSan | Tests under AddressSanitizer + UndefinedBehaviorSanitizer |
+
+CI always sets `-DMHD_NATIVE_ARCH=OFF` (portable codegen). To reproduce locally:
+
+```bash
+chmod +x scripts/ci_build.sh
+./scripts/ci_build.sh
+```
+
 ## Desktop GUI (Windows / macOS / Linux)
 
 After a successful build:
@@ -54,6 +74,8 @@ The GUI lets you set grid/time/CFL/IC/limiter/BC and Ohmic/Hall/Ambipolar, then:
 - plot any conserved field on the interior mesh,
 - scrub time with a slider,
 - play an animation over all snapshots.
+
+Browser UI is used by default (`gui/web_app.py`); set `MHD_GUI=tk` only if you need the legacy tkinter window.
 
 ## Python
 

@@ -1,5 +1,7 @@
 # Сборка и временные файлы CMake
 build/
+build-ci/
+build-asan/
 bin/
 lib/
 
