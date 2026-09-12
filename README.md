@@ -65,12 +65,14 @@ chmod +x scripts/ci_build.sh scripts/format.sh
 
 ### Formatting
 
-Single style: **clang-format** (`.clang-format`). Format the tree with:
+Single style: **clang-format 19.1.7** (pinned via PyPI; same in CI and locally).
 
 ```bash
 ./scripts/format.sh          # rewrite
 ./scripts/format.sh check    # CI gate
 ```
+
+Override pin with `MHD_CLANG_FORMAT_VERSION=19.1.7` if needed. Do not use Homebrew/apt `clang-format` for checks — versions disagree (e.g. 23 vs 14).
 
 ### Regression goldens
 

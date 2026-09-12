@@ -25,10 +25,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Install clang-format
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned clang-format
+        run: python -m pip install --upgrade "clang-format==19.1.7"
       - name: Check formatting
         run: |
           chmod +x scripts/format.sh
