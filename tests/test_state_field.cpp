@@ -1,51 +1,31 @@
 #include <gtest/gtest.h>
 
+#include "mhd/mhd_types.hpp"
 #include "state/state_field.hpp"
 
-TEST(StateField, AllocatesAllArrays) {
+TEST(StateField, AllocatesAllArraysIncludingPsi)
+{
     StateField field(3, 4);
-
-    EXPECT_EQ(field.nx, 3);
-    EXPECT_EQ(field.ny, 4);
-
-    const std::size_t expected = 12;
-    EXPECT_EQ(field.rho.size(), expected);
-    EXPECT_EQ(field.mx.size(), expected);
-    EXPECT_EQ(field.my.size(), expected);
-    EXPECT_EQ(field.mz.size(), expected);
-    EXPECT_EQ(field.energy.size(), expected);
-    EXPECT_EQ(field.bx.size(), expected);
-    EXPECT_EQ(field.by.size(), expected);
-    EXPECT_EQ(field.bz.size(), expected);
+    EXPECT_EQ(field.rho.size(), 12u);
+    EXPECT_EQ(field.psi.size(), 12u);
 }
 
-TEST(StateField, ArraysStartAtZero) {
-    StateField field(2, 2);
-
-    for (double value : field.rho) {
-        EXPECT_DOUBLE_EQ(value, 0.0);
-    }
-    for (double value : field.energy) {
-        EXPECT_DOUBLE_EQ(value, 0.0);
-    }
-}
-
-TEST(StateField, IndexIsRowMajorInY) {
-    StateField field(5, 3);
-
-    EXPECT_EQ(field.index(0, 0), 0);
-    EXPECT_EQ(field.index(4, 0), 4);
-    EXPECT_EQ(field.index(0, 1), 5);
-    EXPECT_EQ(field.index(2, 2), 12);
-}
-
-TEST(StateField, IndexAllowsWriteAndRead) {
+TEST(StateField, GetSetStateRoundTrip)
+{
     StateField field(4, 2);
-    const int idx = field.index(3, 1);
+    const MHDState U{1.1, 0.2, 0.3, 0.4, 5.5, 0.6, 0.7, 0.8, 0.9};
+    field.set_state(3, 1, U);
+    const MHDState V = field.get_state(3, 1);
 
-    field.rho[idx] = 1.25;
-    field.mx[idx] = 2.5;
+    EXPECT_DOUBLE_EQ(V.rho, U.rho);
+    EXPECT_DOUBLE_EQ(V.psi, U.psi);
+    EXPECT_DOUBLE_EQ(V.energy, U.energy);
+}
 
-    EXPECT_DOUBLE_EQ(field.rho[idx], 1.25);
-    EXPECT_DOUBLE_EQ(field.mx[idx], 2.5);
+TEST(StateField, CopyCellIncludesPsi)
+{
+    StateField field(3, 3);
+    field.set_state(1, 1, MHDState{2.0, 1.0, 0.0, 0.0, 3.0, 0.1, 0.0, 0.0, 0.25});
+    field.copy_cell(0, 0, 1, 1);
+    EXPECT_DOUBLE_EQ(field.get_state(0, 0).psi, 0.25);
 }

@@ -15,6 +15,9 @@ add_executable(mhd_tests
     test_boundary_conditions.cpp
     test_mhd_config.cpp
     test_initial_condition.cpp
+    test_mhd_operator.cpp
+    test_time_integrator.cpp
+    test_muscl_glm.cpp
 )
 
 target_link_libraries(mhd_tests PRIVATE

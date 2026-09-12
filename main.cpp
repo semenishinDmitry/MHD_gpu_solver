@@ -1,31 +1,38 @@
 #include "boundary_conditions/boundary_conditions.hpp"
 #include "grid/grid.hpp"
-#include "state/state.hpp"
-#include "state/state_field.hpp"
 #include "initial_condition/inititial_condition.hpp"
+#include "mhd/time_integrator.hpp"
 #include "physics_config/mhd_config.hpp"
+#include "state/state_field.hpp"
+
 #include <iostream>
 
-int main() {
-    // Define grid parameters
-    int nx = 100;
-    int ny = 100;
-    double x_min = 0.0;
-    double x_max = 1.0;
-    double y_min = 0.0;
-    double y_max = 1.0;
+int main()
+{
+    constexpr int nx = 64;
+    constexpr int ny = 64;
+    constexpr double t_end = 0.05;
+    constexpr double cfl = 0.4;
 
-    // Create a grid
-    Grid2D grid(nx, ny, x_min, x_max, y_min, y_max);
+    const MHDConfig config;
+    const Grid2D grid(nx, ny, 0.0, 1.0, 0.0, 1.0, 2);
+    const BoundaryConditions bc(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic);
 
-    // Create a state field
-    StateField state_field(grid.get_size_x(), grid.get_size_y());
+    StateField U(grid.get_size_x(), grid.get_size_y());
+    TimeIntegratorWorkspace work(grid);
 
-    // Initialize the state field with a uniform initial condition
-    initialize_state_field(state_field, grid, InitialConditionType::Uniform);
-    std::cout<<grid.get_dx()<<" "<<grid.get_dy()<<std::endl;
+    initialize_state_field(U, grid, InitialConditionType::OrszagTang, config.gamma);
 
-    // Further simulation code would go here...
+    SolveParams params;
+    params.t_end = t_end;
+    params.cfl = cfl;
+    params.gamma = config.gamma;
+    params.glm_alpha = 0.1;
+    params.limiter = SlopeLimiter::MC;
 
+    const SolveResult result = solve(U, work, grid, bc, params);
+
+    std::cout << "t = " << result.t << ", steps = " << result.steps << ", c_h = " << result.c_h << '\n';
+    std::cout << "max|div B| = " << max_abs_div_b(U, grid) << '\n';
     return 0;
 }
