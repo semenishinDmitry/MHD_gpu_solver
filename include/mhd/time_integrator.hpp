@@ -87,8 +87,8 @@ inline SolveResult solve(StateField& U,
     }
 
     SolveResult result{};
+    // Note: ssp_rk2_step applies BCs before each RHS; do not re-apply here.
     while (result.t < params.t_end && result.steps < params.max_steps) {
-        apply_boundary_conditions(U, grid, bc);
         const CFLResult cfl = compute_cfl_dt(U, grid, params.gamma, params.cfl, params.nonideal);
         result.c_h = cfl.c_h;
 

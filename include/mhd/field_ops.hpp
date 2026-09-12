@@ -6,11 +6,17 @@
 #include <cstring>
 #include <stdexcept>
 
+// Shape checks are debug-only: hot RK kernels must stay allocation- and branch-light.
 inline void ensure_same_shape(const StateField& a, const StateField& b)
 {
+#ifndef NDEBUG
     if (a.nx != b.nx || a.ny != b.ny) {
         throw std::invalid_argument("StateField shape mismatch");
     }
+#else
+    (void)a;
+    (void)b;
+#endif
 }
 
 inline std::size_t field_size(const StateField& U)

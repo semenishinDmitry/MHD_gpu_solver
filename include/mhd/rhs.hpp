@@ -91,18 +91,22 @@ inline void compute_rhs(const StateField& U,
                         SlopeLimiter limiter,
                         const NonIdealConfig& nonideal = NonIdealConfig::ideal())
 {
-    if (U.nx != grid.get_size_x() || U.ny != grid.get_size_y()) [[unlikely]] {
+#ifndef NDEBUG
+    if (U.nx != grid.get_size_x() || U.ny != grid.get_size_y()) {
         throw std::invalid_argument("StateField size does not match Grid2D");
     }
-    if (rhs.nx != U.nx || rhs.ny != U.ny) [[unlikely]] {
+    if (rhs.nx != U.nx || rhs.ny != U.ny) {
         throw std::invalid_argument("rhs StateField size does not match U");
     }
-    if (grid.ng < 2) [[unlikely]] {
+    if (grid.ng < 2) {
         throw std::invalid_argument("compute_rhs (MUSCL) requires grid.ng >= 2");
     }
-    if (work.prim.nx != U.nx || work.fx.nx != U.nx || work.fy.nx != U.nx) [[unlikely]] {
+    if (work.prim.nx != U.nx || work.fx.nx != U.nx || work.fy.nx != U.nx) {
         throw std::invalid_argument("RHSWorkspace size does not match StateField");
     }
+#else
+    (void)0;
+#endif
 
     fill_primitives(U, work.prim, gamma);
     const PrimitiveField& W = work.prim;

@@ -3,9 +3,16 @@ build/
 bin/
 lib/
 
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
 # macOS
 .DS_Store
 
 # IDE и редакторы
 .vscode/
 .idea/
+*.user

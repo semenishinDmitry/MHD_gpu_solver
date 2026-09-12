@@ -19,16 +19,17 @@ add_executable(mhd_tests
     test_time_integrator.cpp
     test_muscl_glm.cpp
     test_nonideal.cpp
+    test_field_ops.cpp
+    test_physics_extra.cpp
+    test_solver_api.cpp
+    test_performance_invariants.cpp
 )
 
 target_link_libraries(mhd_tests PRIVATE
     mhd_headers
     GTest::gtest_main
 )
-
-target_compile_options(mhd_tests PRIVATE
-    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -Wpedantic>
-)
+mhd_apply_flags(mhd_tests)
 
 include(GoogleTest)
 gtest_discover_tests(mhd_tests)
