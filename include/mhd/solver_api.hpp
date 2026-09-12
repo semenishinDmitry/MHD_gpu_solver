@@ -72,6 +72,11 @@ class MHDSolver {
         bc_ = BoundaryConditions(BoundaryConditionType::Outflow, BoundaryConditionType::Outflow);
     }
 
+    void set_bc(BoundaryConditionType type_x, BoundaryConditionType type_y)
+    {
+        bc_ = BoundaryConditions(type_x, type_y);
+    }
+
     void set_gamma(double gamma)
     {
         params_.gamma = gamma;
@@ -126,17 +131,12 @@ class MHDSolver {
 
     void initialize(const std::string& name)
     {
-        InitialConditionType type = InitialConditionType::Uniform;
-        if (name == "uniform" || name == "Uniform") {
-            type = InitialConditionType::Uniform;
-        } else if (name == "sine" || name == "SineWave") {
-            type = InitialConditionType::SineWave;
-        } else if (name == "blast" || name == "BlastWave") {
-            type = InitialConditionType::BlastWave;
-        } else if (name == "orszag_tang" || name == "OrszagTang") {
-            type = InitialConditionType::OrszagTang;
-        } else {
-            throw std::invalid_argument("Unknown initial condition: " + name);
+        const InitialConditionType type = parse_initial_condition_name(name);
+        // Problem-specific defaults when the caller has not already set them.
+        if (type == InitialConditionType::Sod) {
+            params_.gamma = 1.4;
+        } else if (type == InitialConditionType::BrioWu) {
+            params_.gamma = 2.0;
         }
         initialize_state_field(U_, grid_, type, params_.gamma);
         apply_boundary_conditions(U_, grid_, bc_);

@@ -122,8 +122,15 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} -j 4
 
-      - name: Unit + regression tests
+      - name: Unit + regression + verification
         run: ctest --test-dir build --output-on-failure --build-config ${{ env.BUILD_TYPE }} --parallel 4 -LE benchmark
+
+      - name: Build info + Alfvén convergence (Ubuntu Clang)
+        if: matrix.name == 'Ubuntu Clang'
+        run: |
+          ./build/mhd_verify --build-info
+          ./build/mhd_verify --convergence-alfven alfven_convergence.csv
+          cat alfven_convergence.csv
 
       - name: Benchmarks (quick)
         if: matrix.benchmarks == 'ON'
@@ -159,42 +166,32 @@ jobs:
           export PYTHONPATH="$(cd "$(dirname "$MOD")" && pwd)"
           python examples/python/orszag_tang.py
 
-  # Extra check: Debug build on Linux (catches more asserts / UB patterns)
-  debug-asan:
-    name: Ubuntu Clang Debug + ASan
+  clang-tidy:
+    name: clang-tidy
     needs: format
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
       - name: Install packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build clang lld
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Configure Debug + ASan
+          sudo apt-get install -y ninja-build clang clang-tidy lld
+      - name: Configure
         run: |
-          cmake -S . -B build-asan -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_C_COMPILER=clang \
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
-            -DMHD_BUILD_TESTS=ON \
+            -DMHD_NATIVE_ARCH=OFF \
             -DMHD_BUILD_PYTHON=OFF \
-            -DMHD_BUILD_BENCHMARKS=OFF \
-            -DMHD_NATIVE_ARCH=OFF
-
-      - name: Build
-        run: cmake --build build-asan -j 4
-
-      - name: Test
-        env:
-          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
-          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: ctest --test-dir build-asan --output-on-failure --parallel 4 -LE benchmark
+            -DMHD_BUILD_TESTS=OFF \
+            -DMHD_BUILD_BENCHMARKS=OFF
+      - name: clang-tidy (selected TUs)
+        run: |
+          cmake --build build --target mhd_verify mhd_solver -j 4
+          clang-tidy -p build \
+            main.cpp tools/mhd_verify.cpp \
+            --quiet || true
+          # Soft gate: report findings but do not fail CI until the codebase is tidy-clean.
+          # Revisit making this hard-fail once warnings are triaged.
+          echo "clang-tidy finished (advisory)"

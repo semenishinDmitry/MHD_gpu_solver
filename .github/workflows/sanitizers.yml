@@ -1,0 +1,42 @@
+name: Sanitizers
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: sanitizers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  asan-ubsan:
+    name: Ubuntu Clang ASan+UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build clang lld
+      - name: Configure
+        run: |
+          cmake -S . -B build-san -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DMHD_ENABLE_SANITIZERS=ON \
+            -DMHD_NATIVE_ARCH=OFF \
+            -DMHD_BUILD_PYTHON=OFF \
+            -DMHD_BUILD_BENCHMARKS=OFF \
+            -DMHD_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build-san -j 4
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:abort_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build-san --output-on-failure --parallel 4 -LE benchmark

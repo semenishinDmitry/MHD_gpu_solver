@@ -24,6 +24,7 @@ add_executable(mhd_tests
     test_solver_api.cpp
     test_performance_invariants.cpp
     test_regression_golden.cpp
+    test_verification_ci.cpp
 )
 
 target_link_libraries(mhd_tests PRIVATE
@@ -34,6 +35,7 @@ mhd_apply_flags(mhd_tests)
 
 target_compile_definitions(mhd_tests PRIVATE
     MHD_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/goldens"
+    MHD_VERIFICATION_REF_DIR="${CMAKE_CURRENT_SOURCE_DIR}/verification/reference"
 )
 
 include(GoogleTest)

@@ -1,0 +1,26 @@
+name: Numerical correctness
+description: Suspected wrong solution, conservation, or divergence behaviour
+title: "[numerics] "
+labels: ["numerics"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / diagnostic
+      description: Which verification problem and which diagnostic failed?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: Include tolerances, resolution, and reference source
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: This is a verification issue (math/numerics), not experimental validation
+          required: true

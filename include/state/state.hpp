@@ -33,8 +33,23 @@ class State2D {
     {
         return mz / rho;
     }
+    double get_energy() const
+    {
+        return E;
+    }
+    double get_bx() const
+    {
+        return Bx;
+    }
+    double get_by() const
+    {
+        return By;
+    }
+    double get_bz() const
+    {
+        return Bz;
+    }
 };
-
 // State of the system in each cell of the 2D grid
 // d_z = 0; but we still have z-velocity and z-magnetic field components for 2.5D simulations
 class PrimitiveState2D {

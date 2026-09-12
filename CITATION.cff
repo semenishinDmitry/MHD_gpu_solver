@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "MHD Solver — 2D GLM-MHD finite-volume code"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+authors:
+  - family-names: Semenishin
+    given-names: Dmitry
+    # TODO: confirm ORCID / affiliation with the project owner
+repository-code: "https://github.com/semenishinDmitry/MHD_gpu_solver"
+abstract: >-
+  Two-dimensional ideal and non-ideal GLM magnetohydrodynamics solver using
+  MUSCL reconstruction, an HLL Riemann solver, and SSP-RK2 time integration,
+  with Python bindings and a verification suite.
+keywords:
+  - magnetohydrodynamics
+  - finite volume
+  - GLM divergence cleaning
+  - scientific computing
+license: TBD
+# TODO: Project owner must choose and add a LICENSE file; do not invent a license.

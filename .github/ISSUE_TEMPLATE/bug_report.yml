@@ -1,0 +1,26 @@
+name: Bug report
+description: Report a crash, build failure, or incorrect runtime behaviour
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: desc
+    attributes:
+      label: Description
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Commands, IC name, grid size, CFL, t_end
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Output of `./build/mhd_verify --build-info` if available
+    validations:
+      required: false

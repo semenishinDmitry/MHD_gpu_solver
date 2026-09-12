@@ -8,13 +8,13 @@ function(mhd_apply_flags target_name)
 
     target_compile_features(${target_name} PRIVATE cxx_std_20)
 
-    # Warnings
+    # Warnings (strict; do not hide with -Wno-* just to pass CI)
     target_compile_options(${target_name} PRIVATE
         $<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:-Wall -Wextra -Wpedantic>
         $<$<CXX_COMPILER_ID:MSVC>:/W4>
     )
 
-    # Release / RelWithDebInfo optimizations (Clang/LLVM and GCC)
+    # Release / RelWithDebInfo optimizations
     target_compile_options(${target_name} PRIVATE
         $<$<AND:$<CXX_COMPILER_ID:Clang,AppleClang>,$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>>:
             -O3
@@ -37,16 +37,12 @@ function(mhd_apply_flags target_name)
         >
     )
 
-    # Native CPU tuning when requested (default ON for local builds)
-    option(MHD_NATIVE_ARCH "Enable -march=native / -mcpu=native" ON)
     if(MHD_NATIVE_ARCH)
         target_compile_options(${target_name} PRIVATE
             $<$<AND:$<CXX_COMPILER_ID:Clang,AppleClang,GNU>,$<OR:$<CONFIG:Release>,$<CONFIG:RelWithDebInfo>>>:-march=native>
         )
     endif()
 
-    # Thin LTO for Clang/LLVM Release (optional; can slow CI links)
-    option(MHD_ENABLE_LTO "Enable thin LTO for Clang Release builds" OFF)
     if(MHD_ENABLE_LTO)
         target_compile_options(${target_name} PRIVATE
             $<$<AND:$<CXX_COMPILER_ID:Clang,AppleClang>,$<CONFIG:Release>>:-flto=thin>
@@ -54,5 +50,16 @@ function(mhd_apply_flags target_name)
         target_link_options(${target_name} PRIVATE
             $<$<AND:$<CXX_COMPILER_ID:Clang,AppleClang>,$<CONFIG:Release>>:-flto=thin>
         )
+    endif()
+
+    if(MHD_ENABLE_SANITIZERS)
+        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU")
+            target_compile_options(${target_name} PRIVATE
+                -fsanitize=address,undefined -fno-omit-frame-pointer)
+            target_link_options(${target_name} PRIVATE
+                -fsanitize=address,undefined)
+        else()
+            message(WARNING "MHD_ENABLE_SANITIZERS is set but unsupported for this compiler")
+        endif()
     endif()
 endfunction()

@@ -1,93 +1,56 @@
 # MHD Solver
 
 [![CI](https://github.com/semenishinDmitry/MHD_gpu_solver/actions/workflows/ci.yml/badge.svg)](https://github.com/semenishinDmitry/MHD_gpu_solver/actions/workflows/ci.yml)
+[![Sanitizers](https://github.com/semenishinDmitry/MHD_gpu_solver/actions/workflows/sanitizers.yml/badge.svg)](https://github.com/semenishinDmitry/MHD_gpu_solver/actions/workflows/sanitizers.yml)
 
-2D ideal / non-ideal GLM-MHD finite-volume solver (MUSCL + HLL + SSP-RK2), with optional Python bindings.
+2D **ideal / non-ideal GLM-MHD** finite-volume solver (MUSCL + HLL + SSP-RK2) with optional
+Python bindings, a verification suite, and GitHub CI.
 
-## Quick start (recommended)
+> This repository provides **mathematical/numerical verification** of the implementation.
+> It does **not** claim experimental validation or production readiness.
 
-**macOS / Linux**
+## Physical model & methods
+
+- Ideal MHD + Dedner GLM divergence cleaning; optional Ohmic / Hall / Ambipolar terms
+- Uniform Cartesian FV mesh, SSP-RK2 time integration
+- Details: [docs/equations.md](docs/equations.md), [docs/numerical-methods.md](docs/numerical-methods.md)
+
+## Supported test problems
+
+| Problem | IC name | Fast CI |
+|---------|---------|---------|
+| Sod shock tube | `sod` | yes (1D-in-2D) |
+| Brio–Wu | `brio_wu` | yes |
+| Orszag–Tang | `orszag_tang` | yes |
+| MHD rotor | `rotor` | yes |
+| Kelvin–Helmholtz | `kelvin_helmholtz` | yes |
+| Alfvén wave | `alfven_wave` | yes (+ convergence tool) |
+
+See [docs/verification.md](docs/verification.md).
+
+## Build (C++20)
+
 ```bash
-chmod +x scripts/setup_and_build.sh
-./scripts/setup_and_build.sh
-```
-
-**Windows**
-```bat
-scripts\setup_and_build.bat
-```
-or
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\setup_and_build.ps1
-```
-
-The scripts install missing tools when possible (Homebrew / apt / winget), prefer **LLVM clang++**, configure **Release** with native CPU flags, build, and run tests.
-
-## Manual build (Clang/LLVM)
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CXX_COMPILER=clang++ \
-  -DMHD_BUILD_TESTS=ON \
-  -DMHD_BUILD_PYTHON=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMHD_NATIVE_ARCH=OFF
 cmake --build build -j
 ctest --test-dir build --output-on-failure
-./build/mhd_solver
+./build/mhd_verify --build-info
 ```
 
-Useful options:
-- `-DMHD_NATIVE_ARCH=ON` (default) — `-march=native`
-- `-DMHD_ENABLE_LTO=ON` — Clang thin LTO
-- `-DMHD_BUILD_PYTHON=OFF` — skip pybind11
-- `-DMHD_BUILD_TESTS=OFF` — skip GoogleTest
+Convenience scripts: `./scripts/setup_and_build.sh` (local Release + native),
+`./scripts/ci_build.sh` (CI-like portable build).
 
-## Continuous integration
+More: [docs/build.md](docs/build.md).
 
-GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
-
-| Job | What it checks |
-|-----|----------------|
-| clang-format | `./scripts/format.sh check` against repo `.clang-format` |
-| Ubuntu Clang / GCC | Release build, unit + **regression goldens**, Python smoke |
-| macOS AppleClang | Same |
-| Windows MSVC | Same |
-| Ubuntu Clang + benchmarks | Google Benchmark (`mhd_bench`) quick run |
-| Ubuntu Clang Debug + ASan/UBSan | Tests under AddressSanitizer + UndefinedBehaviorSanitizer |
-
-CI always sets `-DMHD_NATIVE_ARCH=OFF` (portable codegen). To reproduce locally:
+## Tests, verification, convergence
 
 ```bash
-chmod +x scripts/ci_build.sh scripts/format.sh
-./scripts/format.sh check
-./scripts/ci_build.sh
+ctest --test-dir build --output-on-failure          # unit + regression + fast verification
+./build/mhd_verify --run sod
+./build/mhd_verify --convergence-alfven out.csv     # smooth-wave EOC table
 ```
 
-### Formatting
-
-Single style: **clang-format 19.1.7** (pinned via PyPI; same in CI and locally).
-
-```bash
-./scripts/format.sh          # rewrite
-./scripts/format.sh check    # CI gate
-```
-
-Override pin with `MHD_CLANG_FORMAT_VERSION=19.1.7` if needed. Do not use Homebrew/apt `clang-format` for checks — versions disagree (e.g. 23 vs 14).
-
-### Regression goldens
-
-Reference fields live in `tests/goldens/*.golden` (Orszag–Tang 32² and Ohmic Bz decay).
-Compared with relative L² / L∞ tolerances in `tests/test_regression_golden.cpp`.
-
-Regenerate after intentional physics/numerics changes (Release, `MHD_NATIVE_ARCH=OFF`):
-
-```bash
-cmake -S . -B build-ci -DMHD_NATIVE_ARCH=OFF -DMHD_BUILD_TESTS=ON
-cmake --build build-ci -j
-MHD_REGEN_GOLDENS=1 ./build-ci/tests/mhd_tests --gtest_filter='Regression.*'
-```
-
-### Benchmarks
+## Benchmarks
 
 ```bash
 cmake -S . -B build -DMHD_BUILD_BENCHMARKS=ON -DMHD_NATIVE_ARCH=OFF
@@ -95,42 +58,45 @@ cmake --build build -j --target mhd_bench
 ./build/benchmarks/mhd_bench --benchmark_filter=BM_OrszagTang_Run
 ```
 
-## Desktop GUI (Windows / macOS / Linux)
+See [docs/benchmarks.md](docs/benchmarks.md). Workflow: `.github/workflows/benchmark.yml`
+(artifacts only; not a merge gate).
 
-After a successful build:
+## Code quality
 
 ```bash
-./scripts/run_gui.sh          # macOS / Linux
-scripts\run_gui.bat           # Windows
+./scripts/format.sh check     # clang-format 19.1.7 (pinned)
+cmake --build build --target lint   # clang-tidy (if available)
 ```
 
-The GUI lets you set grid/time/CFL/IC/limiter/BC and Ohmic/Hall/Ambipolar, then:
-- run the solver,
-- plot any conserved field on the interior mesh,
-- scrub time with a slider,
-- play an animation over all snapshots.
+Sanitizers: `-DMHD_ENABLE_SANITIZERS=ON` or `.github/workflows/sanitizers.yml`.
 
-Browser UI is used by default (`gui/web_app.py`); set `MHD_GUI=tk` only if you need the legacy tkinter window.
-
-## Python
+## Python & GUI
 
 ```bash
-export PYTHONPATH="$PWD/build/python:$PYTHONPATH"   # Windows: set PYTHONPATH=...\build\python;%PYTHONPATH%
+export PYTHONPATH="$PWD/build/python:$PYTHONPATH"
 python examples/python/orszag_tang.py
+./scripts/run_gui.sh          # browser UI by default
 ```
 
-```python
-import mhd_solver as mhd
-s = mhd.MHDSolver(64, 64)
-s.enable_ohmic(1e-3)          # optional; omit for ideal MHD
-s.initialize("orszag_tang")
-s.run(0.05)
-print(s.max_div_b(), s.field("rho").shape)
-```
+## Documentation index
 
-## Performance notes
+| Doc | Topic |
+|-----|-------|
+| [equations.md](docs/equations.md) | Conserved form, EOS, non-ideal |
+| [numerical-methods.md](docs/numerical-methods.md) | FV / RK / CFL |
+| [reconstruction.md](docs/reconstruction.md) | MUSCL / limiters |
+| [riemann-solvers.md](docs/riemann-solvers.md) | HLL |
+| [glm.md](docs/glm.md) | Divergence cleaning |
+| [boundary-conditions.md](docs/boundary-conditions.md) | Periodic / outflow |
+| [verification.md](docs/verification.md) | Test problems & EOC |
+| [benchmarks.md](docs/benchmarks.md) | Timing methodology |
+| [build.md](docs/build.md) | Toolchain & options |
 
-Hot paths (`compute_rhs`, SSP-RK2, field SoA kernels, non-ideal fluxes) do **not** allocate:
-- all scratch lives in `TimeIntegratorWorkspace` / `RHSWorkspace`
-- ideal MHD skips non-ideal `J`/`E` work entirely (`NonIdealConfig::any() == false`)
-- Release builds use `-O3`, `-fno-math-errno`, `-ffp-contract=fast`, vectorize (Clang), `-march=native`
+## License
+
+**No LICENSE file is present yet.** The project owner must choose a license; see `CITATION.cff`
+(`license: TBD`). Do not assume open-source terms until a LICENSE is added.
+
+## Citation
+
+See [`CITATION.cff`](CITATION.cff).
