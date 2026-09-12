@@ -40,6 +40,21 @@ Useful options:
 - `-DMHD_BUILD_PYTHON=OFF` — skip pybind11
 - `-DMHD_BUILD_TESTS=OFF` — skip GoogleTest
 
+## Desktop GUI (Windows / macOS / Linux)
+
+After a successful build:
+
+```bash
+./scripts/run_gui.sh          # macOS / Linux
+scripts\run_gui.bat           # Windows
+```
+
+The GUI lets you set grid/time/CFL/IC/limiter/BC and Ohmic/Hall/Ambipolar, then:
+- run the solver,
+- plot any conserved field on the interior mesh,
+- scrub time with a slider,
+- play an animation over all snapshots.
+
 ## Python
 
 ```bash

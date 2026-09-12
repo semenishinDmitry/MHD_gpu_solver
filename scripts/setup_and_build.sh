@@ -65,7 +65,7 @@ if ((${#need_install[@]})); then
       for p in "${need_install[@]}"; do
         case "$p" in
           clang) pkgs+=(clang lld);;
-          python3) pkgs+=(python3 python3-dev python3-pip);;
+          python3) pkgs+=(python3 python3-dev python3-pip python3-tk);;
           *) pkgs+=("$p");;
         esac
       done
@@ -93,7 +93,11 @@ info "Using C++ compiler: $CXX_COMPILER"
 "$CXX_COMPILER" --version | head -n 1 || true
 
 if have python3; then
-  python3 -m pip install --user -q numpy || warn "pip/numpy optional for examples"
+  python3 -m pip install --user -q numpy matplotlib || warn "pip/numpy/matplotlib optional install failed"
+  # Ensure Tk bindings exist (needed by the GUI).
+  python3 - <<'PY' 2>/dev/null || warn "tkinter missing (Linux: sudo apt install python3-tk)"
+import tkinter
+PY
 fi
 
 # --- configure & build -------------------------------------------------------

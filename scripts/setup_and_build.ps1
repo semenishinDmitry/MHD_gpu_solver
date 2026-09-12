@@ -62,9 +62,9 @@ if ($missing.Count -gt 0) {
 Write-Info "Using C++ compiler: $cxx"
 
 if (Test-Cmd "python") {
-    python -m pip install --user -q numpy 2>$null
+    python -m pip install --user -q numpy matplotlib 2>$null
 } elseif (Test-Cmd "python3") {
-    python3 -m pip install --user -q numpy 2>$null
+    python3 -m pip install --user -q numpy matplotlib 2>$null
 }
 
 Write-Info "Configuring ($BuildType) into $BuildDir"
