@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mhd/compat.hpp"
 #include "state/state_field.hpp"
 
 #include <cstddef>
@@ -46,35 +47,35 @@ inline void field_xpay(StateField& out, const StateField& x, double a, const Sta
 
     const std::size_t n = field_size(out);
 
-    double* __restrict__ o_rho = out.rho.data();
-    double* __restrict__ o_mx = out.mx.data();
-    double* __restrict__ o_my = out.my.data();
-    double* __restrict__ o_mz = out.mz.data();
-    double* __restrict__ o_e = out.energy.data();
-    double* __restrict__ o_bx = out.bx.data();
-    double* __restrict__ o_by = out.by.data();
-    double* __restrict__ o_bz = out.bz.data();
-    double* __restrict__ o_psi = out.psi.data();
+    double* MHD_RESTRICT o_rho = out.rho.data();
+    double* MHD_RESTRICT o_mx = out.mx.data();
+    double* MHD_RESTRICT o_my = out.my.data();
+    double* MHD_RESTRICT o_mz = out.mz.data();
+    double* MHD_RESTRICT o_e = out.energy.data();
+    double* MHD_RESTRICT o_bx = out.bx.data();
+    double* MHD_RESTRICT o_by = out.by.data();
+    double* MHD_RESTRICT o_bz = out.bz.data();
+    double* MHD_RESTRICT o_psi = out.psi.data();
 
-    const double* __restrict__ x_rho = x.rho.data();
-    const double* __restrict__ x_mx = x.mx.data();
-    const double* __restrict__ x_my = x.my.data();
-    const double* __restrict__ x_mz = x.mz.data();
-    const double* __restrict__ x_e = x.energy.data();
-    const double* __restrict__ x_bx = x.bx.data();
-    const double* __restrict__ x_by = x.by.data();
-    const double* __restrict__ x_bz = x.bz.data();
-    const double* __restrict__ x_psi = x.psi.data();
+    const double* MHD_RESTRICT x_rho = x.rho.data();
+    const double* MHD_RESTRICT x_mx = x.mx.data();
+    const double* MHD_RESTRICT x_my = x.my.data();
+    const double* MHD_RESTRICT x_mz = x.mz.data();
+    const double* MHD_RESTRICT x_e = x.energy.data();
+    const double* MHD_RESTRICT x_bx = x.bx.data();
+    const double* MHD_RESTRICT x_by = x.by.data();
+    const double* MHD_RESTRICT x_bz = x.bz.data();
+    const double* MHD_RESTRICT x_psi = x.psi.data();
 
-    const double* __restrict__ y_rho = y.rho.data();
-    const double* __restrict__ y_mx = y.mx.data();
-    const double* __restrict__ y_my = y.my.data();
-    const double* __restrict__ y_mz = y.mz.data();
-    const double* __restrict__ y_e = y.energy.data();
-    const double* __restrict__ y_bx = y.bx.data();
-    const double* __restrict__ y_by = y.by.data();
-    const double* __restrict__ y_bz = y.bz.data();
-    const double* __restrict__ y_psi = y.psi.data();
+    const double* MHD_RESTRICT y_rho = y.rho.data();
+    const double* MHD_RESTRICT y_mx = y.mx.data();
+    const double* MHD_RESTRICT y_my = y.my.data();
+    const double* MHD_RESTRICT y_mz = y.mz.data();
+    const double* MHD_RESTRICT y_e = y.energy.data();
+    const double* MHD_RESTRICT y_bx = y.bx.data();
+    const double* MHD_RESTRICT y_by = y.by.data();
+    const double* MHD_RESTRICT y_bz = y.bz.data();
+    const double* MHD_RESTRICT y_psi = y.psi.data();
 
     for (std::size_t i = 0; i < n; ++i) {
         o_rho[i] = x_rho[i] + a * y_rho[i];
@@ -101,35 +102,35 @@ inline void field_ssp_rk2_combine(StateField& U,
     const double half = 0.5;
     const double half_dt = 0.5 * dt;
 
-    double* __restrict__ u_rho = U.rho.data();
-    double* __restrict__ u_mx = U.mx.data();
-    double* __restrict__ u_my = U.my.data();
-    double* __restrict__ u_mz = U.mz.data();
-    double* __restrict__ u_e = U.energy.data();
-    double* __restrict__ u_bx = U.bx.data();
-    double* __restrict__ u_by = U.by.data();
-    double* __restrict__ u_bz = U.bz.data();
-    double* __restrict__ u_psi = U.psi.data();
+    double* MHD_RESTRICT u_rho = U.rho.data();
+    double* MHD_RESTRICT u_mx = U.mx.data();
+    double* MHD_RESTRICT u_my = U.my.data();
+    double* MHD_RESTRICT u_mz = U.mz.data();
+    double* MHD_RESTRICT u_e = U.energy.data();
+    double* MHD_RESTRICT u_bx = U.bx.data();
+    double* MHD_RESTRICT u_by = U.by.data();
+    double* MHD_RESTRICT u_bz = U.bz.data();
+    double* MHD_RESTRICT u_psi = U.psi.data();
 
-    const double* __restrict__ s_rho = U_star.rho.data();
-    const double* __restrict__ s_mx = U_star.mx.data();
-    const double* __restrict__ s_my = U_star.my.data();
-    const double* __restrict__ s_mz = U_star.mz.data();
-    const double* __restrict__ s_e = U_star.energy.data();
-    const double* __restrict__ s_bx = U_star.bx.data();
-    const double* __restrict__ s_by = U_star.by.data();
-    const double* __restrict__ s_bz = U_star.bz.data();
-    const double* __restrict__ s_psi = U_star.psi.data();
+    const double* MHD_RESTRICT s_rho = U_star.rho.data();
+    const double* MHD_RESTRICT s_mx = U_star.mx.data();
+    const double* MHD_RESTRICT s_my = U_star.my.data();
+    const double* MHD_RESTRICT s_mz = U_star.mz.data();
+    const double* MHD_RESTRICT s_e = U_star.energy.data();
+    const double* MHD_RESTRICT s_bx = U_star.bx.data();
+    const double* MHD_RESTRICT s_by = U_star.by.data();
+    const double* MHD_RESTRICT s_bz = U_star.bz.data();
+    const double* MHD_RESTRICT s_psi = U_star.psi.data();
 
-    const double* __restrict__ r_rho = rhs.rho.data();
-    const double* __restrict__ r_mx = rhs.mx.data();
-    const double* __restrict__ r_my = rhs.my.data();
-    const double* __restrict__ r_mz = rhs.mz.data();
-    const double* __restrict__ r_e = rhs.energy.data();
-    const double* __restrict__ r_bx = rhs.bx.data();
-    const double* __restrict__ r_by = rhs.by.data();
-    const double* __restrict__ r_bz = rhs.bz.data();
-    const double* __restrict__ r_psi = rhs.psi.data();
+    const double* MHD_RESTRICT r_rho = rhs.rho.data();
+    const double* MHD_RESTRICT r_mx = rhs.mx.data();
+    const double* MHD_RESTRICT r_my = rhs.my.data();
+    const double* MHD_RESTRICT r_mz = rhs.mz.data();
+    const double* MHD_RESTRICT r_e = rhs.energy.data();
+    const double* MHD_RESTRICT r_bx = rhs.bx.data();
+    const double* MHD_RESTRICT r_by = rhs.by.data();
+    const double* MHD_RESTRICT r_bz = rhs.bz.data();
+    const double* MHD_RESTRICT r_psi = rhs.psi.data();
 
     for (std::size_t i = 0; i < n; ++i) {
         u_rho[i] = half * (u_rho[i] + s_rho[i]) + half_dt * r_rho[i];

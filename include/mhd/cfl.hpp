@@ -1,6 +1,7 @@
 #pragma once
 
 #include "grid/grid.hpp"
+#include "mhd/compat.hpp"
 #include "mhd/mhd_physics.hpp"
 #include "mhd/mhd_types.hpp"
 #include "physics_config/mhd_config.hpp"
@@ -36,15 +37,15 @@ inline CFLResult compute_cfl_dt(const StateField& U,
     const double inv_dx = 1.0 / grid.dx;
     const double inv_dy = 1.0 / grid.dy;
 
-    const double* __restrict__ rho = U.rho.data();
-    const double* __restrict__ mx = U.mx.data();
-    const double* __restrict__ my = U.my.data();
-    const double* __restrict__ mz = U.mz.data();
-    const double* __restrict__ energy = U.energy.data();
-    const double* __restrict__ bx = U.bx.data();
-    const double* __restrict__ by = U.by.data();
-    const double* __restrict__ bz = U.bz.data();
-    const double* __restrict__ psi = U.psi.data();
+    const double* MHD_RESTRICT rho = U.rho.data();
+    const double* MHD_RESTRICT mx = U.mx.data();
+    const double* MHD_RESTRICT my = U.my.data();
+    const double* MHD_RESTRICT mz = U.mz.data();
+    const double* MHD_RESTRICT energy = U.energy.data();
+    const double* MHD_RESTRICT bx = U.bx.data();
+    const double* MHD_RESTRICT by = U.by.data();
+    const double* MHD_RESTRICT bz = U.bz.data();
+    const double* MHD_RESTRICT psi = U.psi.data();
 
     double c_h = 0.0;
 

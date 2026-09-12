@@ -1,6 +1,7 @@
 #pragma once
 
 #include "grid/grid.hpp"
+#include "mhd/compat.hpp"
 #include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
@@ -27,17 +28,17 @@ inline Vec3 cross(const Vec3& a, const Vec3& b)
 //   Jz =  ∂By/∂x - ∂Bx/∂y
 inline void compute_current(const PrimitiveField& W,
                             const Grid2D& grid,
-                            double* __restrict__ Jx,
-                            double* __restrict__ Jy,
-                            double* __restrict__ Jz)
+                            double* MHD_RESTRICT Jx,
+                            double* MHD_RESTRICT Jy,
+                            double* MHD_RESTRICT Jz)
 {
     const double inv_2dx = 0.5 / grid.dx;
     const double inv_2dy = 0.5 / grid.dy;
     const int nx = W.nx;
 
-    const double* __restrict__ bx = W.bx.data();
-    const double* __restrict__ by = W.by.data();
-    const double* __restrict__ bz = W.bz.data();
+    const double* MHD_RESTRICT bx = W.bx.data();
+    const double* MHD_RESTRICT by = W.by.data();
+    const double* MHD_RESTRICT bz = W.bz.data();
 
     // Need one layer of ghosts around interior for face averaging; fill all cells
     // with accessible centered neighbors (ng >= 2 guarantees this for interior faces).
@@ -113,9 +114,9 @@ inline void add_nonideal_face_fluxes(const PrimitiveField& W,
                                      StateField& fx,
                                      StateField& fy,
                                      const Grid2D& grid,
-                                     const double* __restrict__ Jx,
-                                     const double* __restrict__ Jy,
-                                     const double* __restrict__ Jz,
+                                     const double* MHD_RESTRICT Jx,
+                                     const double* MHD_RESTRICT Jy,
+                                     const double* MHD_RESTRICT Jz,
                                      const NonIdealConfig& cfg)
 {
     const int nx = W.nx;
