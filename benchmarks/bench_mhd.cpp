@@ -1,5 +1,7 @@
 #include <benchmark/benchmark.h>
 
+#include "mhd/gpu/device_solver.hpp"
+#include "mhd/parallel.hpp"
 #include "mhd/solver_api.hpp"
 
 #include <string>
@@ -72,6 +74,65 @@ void BM_Ohmic_OrszagTang64(benchmark::State& state)
     }
 }
 BENCHMARK(BM_Ohmic_OrszagTang64)->Unit(benchmark::kMillisecond);
+
+// CPU execution matrix: args = {n, threads (0 = all cores), simd (0/1)}.
+void BM_OrszagTang_Cpu(benchmark::State& state)
+{
+    const int n = static_cast<int>(state.range(0));
+    mhd::set_num_threads(static_cast<int>(state.range(1)));
+    mhd::set_simd_enabled(state.range(2) != 0);
+    for (auto _ : state) {
+        state.PauseTiming();
+        MHDSolver solver(n, n);
+        configure_orszag(solver);
+        solver.initialize("orszag_tang");
+        state.ResumeTiming();
+        const SolveResult r = solver.run(0.01);
+        state.counters["steps"] = r.steps;
+        state.counters["Mcell_updates/s"] = benchmark::Counter(
+            static_cast<double>(n) * n * r.steps * 1e-6, benchmark::Counter::kIsRate);
+        benchmark::ClobberMemory();
+    }
+    mhd::set_num_threads(0);
+    mhd::set_simd_enabled(true);
+}
+BENCHMARK(BM_OrszagTang_Cpu)
+    ->ArgNames({"n", "threads", "simd"})
+    ->Args({256, 1, 0})
+    ->Args({256, 1, 1})
+    ->Args({256, 0, 1})
+    ->Args({512, 1, 1})
+    ->Args({512, 0, 1})
+    ->Unit(benchmark::kMillisecond)
+    ->UseRealTime();
+
+// GPU backends (skipped when unavailable). Includes host<->device transfers per run().
+void BM_OrszagTang_Metal(benchmark::State& state)
+{
+    if (!mhd::metal_available()) {
+        state.SkipWithError("Metal backend not available");
+        return;
+    }
+    const int n = static_cast<int>(state.range(0));
+    for (auto _ : state) {
+        state.PauseTiming();
+        MHDSolver solver(n, n);
+        configure_orszag(solver);
+        solver.initialize("orszag_tang");
+        solver.set_backend(mhd::Backend::Metal);
+        solver.backend_device(); // create device + compile shaders outside the timed region
+        state.ResumeTiming();
+        const SolveResult r = solver.run(0.01);
+        state.counters["Mcell_updates/s"] = benchmark::Counter(
+            static_cast<double>(n) * n * r.steps * 1e-6, benchmark::Counter::kIsRate);
+    }
+}
+BENCHMARK(BM_OrszagTang_Metal)
+    ->Arg(256)
+    ->Arg(512)
+    ->Arg(1024)
+    ->Unit(benchmark::kMillisecond)
+    ->UseRealTime();
 
 } // namespace
 

@@ -20,13 +20,13 @@ TEST(PerformanceInvariants, WorkspaceBuffersArePreallocated)
     const auto* rho_star = work.U_star.rho.data();
     const auto* rho_rhs = work.rhs.rho.data();
     const auto* prim = work.rhs_work.prim.rho.data();
-    const auto* fx = work.rhs_work.fx.rho.data();
+    const auto* scratch = work.rhs_work.row_scratch.at(0).data();
     const auto* jx = work.rhs_work.Jx.data();
 
     EXPECT_NE(rho_star, nullptr);
     EXPECT_NE(rho_rhs, nullptr);
     EXPECT_NE(prim, nullptr);
-    EXPECT_NE(fx, nullptr);
+    EXPECT_NE(scratch, nullptr);
     EXPECT_NE(jx, nullptr);
 
     EXPECT_EQ(work.U_star.rho.capacity(), work.U_star.rho.size());
@@ -50,7 +50,7 @@ TEST(PerformanceInvariants, RhsReusesSameBufferPointers)
     }
 
     const double* p0 = work.rhs.rho.data();
-    const double* f0 = work.rhs_work.fx.rho.data();
+    const double* f0 = work.rhs_work.row_scratch.at(0).data();
     const double* j0 = work.rhs_work.Jx.data();
 
     apply_boundary_conditions(U, grid, bc);
@@ -59,7 +59,7 @@ TEST(PerformanceInvariants, RhsReusesSameBufferPointers)
                 NonIdealConfig::with_ohmic(1e-3));
 
     EXPECT_EQ(work.rhs.rho.data(), p0);
-    EXPECT_EQ(work.rhs_work.fx.rho.data(), f0);
+    EXPECT_EQ(work.rhs_work.row_scratch.at(0).data(), f0);
     EXPECT_EQ(work.rhs_work.Jx.data(), j0);
 }
 

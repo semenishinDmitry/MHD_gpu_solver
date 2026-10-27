@@ -22,6 +22,9 @@ add_executable(mhd_tests
     test_field_ops.cpp
     test_physics_extra.cpp
     test_solver_api.cpp
+    test_mask.cpp
+    test_cpu_kernels.cpp
+    test_gpu_backends.cpp
     test_performance_invariants.cpp
     test_regression_golden.cpp
     test_verification_ci.cpp

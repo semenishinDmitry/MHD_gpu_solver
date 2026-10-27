@@ -4,8 +4,10 @@
 #include "grid/grid.hpp"
 #include "mhd/cfl.hpp"
 #include "mhd/field_ops.hpp"
+#include "mhd/mask.hpp"
 #include "mhd/mhd_types.hpp"
 #include "mhd/rhs.hpp"
+#include "mhd/solve_types.hpp"
 #include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
@@ -34,40 +36,32 @@ struct TimeIntegratorWorkspace {
 inline void ssp_rk2_step(StateField& U, TimeIntegratorWorkspace& work, const Grid2D& grid,
                          const BoundaryConditions& bc, double gamma, double dt, double c_h,
                          double glm_alpha, SlopeLimiter limiter,
-                         const NonIdealConfig& nonideal = NonIdealConfig::ideal())
+                         const NonIdealConfig& nonideal = NonIdealConfig::ideal(),
+                         const FluidMask* mask = nullptr, bool reflective_walls = true)
 {
     if (dt <= 0.0) {
         throw std::invalid_argument("ssp_rk2_step requires positive dt");
     }
 
     apply_boundary_conditions(U, grid, bc);
-    compute_rhs(U, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter, nonideal);
+    if (mask != nullptr && reflective_walls) {
+        apply_solid_wall_fill(U, grid, *mask, gamma);
+    }
+    compute_rhs(U, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter, nonideal, mask);
     field_xpay(work.U_star, U, dt, work.rhs);
 
     apply_boundary_conditions(work.U_star, grid, bc);
+    if (mask != nullptr && reflective_walls) {
+        apply_solid_wall_fill(work.U_star, grid, *mask, gamma);
+    }
     compute_rhs(work.U_star, work.rhs, grid, work.rhs_work, gamma, c_h, glm_alpha, limiter,
-                nonideal);
+                nonideal, mask);
     field_ssp_rk2_combine(U, work.U_star, work.rhs, dt);
 }
 
-struct SolveParams {
-    double t_end = 0.0;
-    double cfl = 0.4;
-    double gamma = 5.0 / 3.0;
-    double glm_alpha = 0.1;
-    SlopeLimiter limiter = SlopeLimiter::MC;
-    NonIdealConfig nonideal = NonIdealConfig::ideal();
-    int max_steps = 1'000'000;
-};
-
-struct SolveResult {
-    double t = 0.0;
-    int steps = 0;
-    double c_h = 0.0;
-};
-
 inline SolveResult solve(StateField& U, TimeIntegratorWorkspace& work, const Grid2D& grid,
-                         const BoundaryConditions& bc, const SolveParams& params)
+                         const BoundaryConditions& bc, const SolveParams& params,
+                         const FluidMask* mask = nullptr, bool reflective_walls = true)
 {
     if (params.t_end < 0.0) {
         throw std::invalid_argument("t_end must be non-negative");
@@ -80,15 +74,21 @@ inline SolveResult solve(StateField& U, TimeIntegratorWorkspace& work, const Gri
         throw std::invalid_argument("solve requires grid.ng >= 2 for MUSCL");
     }
 
+    const FluidMask* active_mask = nullptr;
+    if (mask != nullptr && !mask->empty() && !mask->all_fluid()) {
+        active_mask = mask;
+    }
+
     SolveResult result{};
     // Note: ssp_rk2_step applies BCs before each RHS; do not re-apply here.
     while (result.t < params.t_end && result.steps < params.max_steps) {
-        const CFLResult cfl = compute_cfl_dt(U, grid, params.gamma, params.cfl, params.nonideal);
+        const CFLResult cfl =
+            compute_cfl_dt(U, grid, params.gamma, params.cfl, params.nonideal, active_mask);
         result.c_h = cfl.c_h;
 
         double dt = std::min(cfl.dt, params.t_end - result.t);
         ssp_rk2_step(U, work, grid, bc, params.gamma, dt, cfl.c_h, params.glm_alpha, params.limiter,
-                     params.nonideal);
+                     params.nonideal, active_mask, reflective_walls);
 
         result.t += dt;
         ++result.steps;
@@ -99,5 +99,8 @@ inline SolveResult solve(StateField& U, TimeIntegratorWorkspace& work, const Gri
     }
 
     apply_boundary_conditions(U, grid, bc);
+    if (active_mask != nullptr && reflective_walls) {
+        apply_solid_wall_fill(U, grid, *active_mask, params.gamma);
+    }
     return result;
 }

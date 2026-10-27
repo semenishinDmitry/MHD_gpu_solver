@@ -1,0 +1,103 @@
+name: GPU
+
+# GPU correctness + performance gate (tools/mhd_backend_compare.cpp --gate, docs/gpu.md#ci-gate):
+#   * accuracy: fp32/fp64 GPU vs fp64 CPU on Orszag-Tang (ideal, Ohmic+Hall): same step count,
+#     relative L1/Linf, mass/energy conservation; Alfvén wave order and error vs the CPU;
+#   * speed: GPU throughput >= MHD_GPU_MIN_SPEEDUP x the best CPU configuration (all threads +
+#     SIMD) at 512^2, median of 3 runs.
+#
+# GitHub-hosted runners have no NVIDIA GPU, and macOS VMs give no meaningful GPU timings, so:
+#   * `metal-hosted` runs the accuracy gate on a hosted macOS runner when Metal is exposed
+#     (otherwise it reports "skipped" and passes);
+#   * `metal-self-hosted` / `cuda-self-hosted` run the full gate (accuracy + speed, GPU required)
+#     on self-hosted runners. Enable them with repository variables
+#     MHD_METAL_RUNNER=true / MHD_CUDA_RUNNER=true (Settings -> Secrets and variables -> Actions);
+#     runner labels: [self-hosted, macOS, ARM64] and [self-hosted, Linux, X64, gpu].
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      min_speedup:
+        description: "Required GPU speed-up over the best CPU configuration"
+        default: "1.5"
+
+concurrency:
+  group: gpu-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MHD_GPU_MIN_SPEEDUP: ${{ github.event.inputs.min_speedup || vars.MHD_GPU_MIN_SPEEDUP || '1.5' }}
+
+jobs:
+  metal-hosted:
+    name: Metal accuracy (hosted macOS)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packages
+        run: brew install ninja || true
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DMHD_ENABLE_METAL=ON -DMHD_NATIVE_ARCH=OFF -DMHD_BUILD_PYTHON=OFF
+      - name: Build
+        run: cmake --build build -j 4
+      - name: GPU backend tests (skipped without a Metal device)
+        run: ctest --test-dir build --output-on-failure -R "GpuBackends|GpuGate"
+      - name: Accuracy gate
+        run: ./build/mhd_backend_compare --gate --no-speed --markdown gpu_gate.md
+      - name: Summary
+        if: always()
+        run: cat gpu_gate.md >> "$GITHUB_STEP_SUMMARY" || true
+
+  metal-self-hosted:
+    name: Metal gate (self-hosted Apple Silicon)
+    if: vars.MHD_METAL_RUNNER == 'true'
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: |
+          cmake -S . -B build-gpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DMHD_ENABLE_METAL=ON -DMHD_NATIVE_ARCH=ON -DMHD_BUILD_PYTHON=OFF
+      - name: Build
+        run: cmake --build build-gpu -j
+      - name: Tests
+        run: ctest --test-dir build-gpu --output-on-failure -LE benchmark
+      - name: Accuracy + speed gate
+        run: |
+          ./build-gpu/mhd_backend_compare --gate --require-gpu \
+            --min-speedup "$MHD_GPU_MIN_SPEEDUP" --markdown gpu_gate.md
+      - name: Summary
+        if: always()
+        run: cat gpu_gate.md >> "$GITHUB_STEP_SUMMARY" || true
+
+  cuda-self-hosted:
+    name: CUDA gate (self-hosted NVIDIA)
+    if: vars.MHD_CUDA_RUNNER == 'true'
+    runs-on: [self-hosted, Linux, X64, gpu]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: |
+          cmake -S . -B build-gpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DMHD_ENABLE_CUDA=ON -DMHD_CUDA_ARCHITECTURES=native \
+            -DMHD_NATIVE_ARCH=ON -DMHD_BUILD_PYTHON=OFF
+      - name: Build
+        run: cmake --build build-gpu -j
+      - name: Tests
+        run: ctest --test-dir build-gpu --output-on-failure -LE benchmark
+      - name: Accuracy + speed gate (fp64 and fp32)
+        run: |
+          ./build-gpu/mhd_backend_compare --gate --require-gpu \
+            --min-speedup "$MHD_GPU_MIN_SPEEDUP" --markdown gpu_gate.md
+      - name: Summary
+        if: always()
+        run: cat gpu_gate.md >> "$GITHUB_STEP_SUMMARY" || true

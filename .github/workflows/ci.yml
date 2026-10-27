@@ -166,6 +166,31 @@ jobs:
           export PYTHONPATH="$(cd "$(dirname "$MOD")" && pwd)"
           python examples/python/orszag_tang.py
 
+  cuda-build:
+    name: CUDA backend (compile only)
+    needs: format
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container: nvidia/cuda:12.6.3-devel-ubuntu24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install packages
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends cmake ninja-build g++ git ca-certificates
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMHD_ENABLE_CUDA=ON \
+            -DMHD_CUDA_ARCHITECTURES="80;89" \
+            -DMHD_NATIVE_ARCH=OFF \
+            -DMHD_BUILD_PYTHON=OFF
+      - name: Build (no GPU on hosted runners; tests run on CPU only)
+        run: |
+          cmake --build build -j 4
+          ctest --test-dir build --output-on-failure -LE benchmark
+
   clang-tidy:
     name: clang-tidy
     needs: format

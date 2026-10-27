@@ -19,6 +19,16 @@ struct BoundaryCondition2D {
 
 using BoundaryConditions = BoundaryCondition2D;
 
+// Interior source (global index) of periodic ghost g on the low side (low = true) or the high
+// side of an axis with n interior cells and ng ghosts. Wraps modulo n, so it is also correct
+// when n < ng (e.g. ny = 1 strips used for 1D problems), where a plain `n + g` would read
+// another, not yet updated ghost cell.
+inline int periodic_source(int g, int n, int ng, bool low)
+{
+    const int offset = low ? (g - ng) : g;
+    return ng + ((offset % n) + n) % n;
+}
+
 inline void apply_boundary_conditions_x(StateField& U, const Grid2D& grid,
                                         BoundaryConditionType type)
 {
@@ -33,8 +43,8 @@ inline void apply_boundary_conditions_x(StateField& U, const Grid2D& grid,
 
             switch (type) {
             case BoundaryConditionType::Periodic:
-                U.copy_cell(i_left_ghost, j, nx + g, j);
-                U.copy_cell(i_right_ghost, j, ng + g, j);
+                U.copy_cell(i_left_ghost, j, periodic_source(g, nx, ng, true), j);
+                U.copy_cell(i_right_ghost, j, periodic_source(g, nx, ng, false), j);
                 break;
             case BoundaryConditionType::Outflow:
                 U.copy_cell(i_left_ghost, j, ng, j);
@@ -62,8 +72,8 @@ inline void apply_boundary_conditions_y(StateField& U, const Grid2D& grid,
 
             switch (type) {
             case BoundaryConditionType::Periodic:
-                U.copy_cell(i, j_bottom_ghost, i, ny + g);
-                U.copy_cell(i, j_top_ghost, i, ng + g);
+                U.copy_cell(i, j_bottom_ghost, i, periodic_source(g, ny, ng, true));
+                U.copy_cell(i, j_top_ghost, i, periodic_source(g, ny, ng, false));
                 break;
             case BoundaryConditionType::Outflow:
                 U.copy_cell(i, j_bottom_ghost, i, ng);

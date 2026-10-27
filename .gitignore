@@ -1,17 +1,53 @@
 # Сборка и временные файлы CMake
 build/
-build-ci/
-build-asan/
-build-rg/
-build-san/
+build-*/
+cmake-build-*/
+out/
 bin/
 lib/
+Testing/
+CMakeUserPresets.json
+/compile_commands.json
+
+# Артефакты компиляции (C++ / Objective-C++ / CUDA / Metal)
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ptx
+*.cubin
+*.fatbin
+*.air
+*.metallib
+
+# Результаты бенчмарков и верификации (генерируются инструментами)
+alfven_convergence.csv
+benchmark_results.json
+build_info.txt
+compare*.md
+compare*.csv
+gpu_gate*.md
+
+# Профилировщики
+*.trace/
+perf.data*
 
 # Python
 __pycache__/
 *.pyc
+*.pyd
+*.egg-info/
+.pytest_cache/
 .venv/
 venv/
+
+# clangd / clang-tidy кэш
+.cache/
 
 # macOS
 .DS_Store
@@ -20,3 +56,4 @@ venv/
 .vscode/
 .idea/
 *.user
+*.swp

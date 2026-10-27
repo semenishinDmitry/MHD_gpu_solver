@@ -1,89 +1,147 @@
 #pragma once
 
 #include "grid/grid.hpp"
-#include "mhd/hll.hpp"
-#include "mhd/mhd_physics.hpp"
+#include "mhd/kernels/cpu_rows.hpp"
+#include "mhd/mask.hpp"
 #include "mhd/mhd_types.hpp"
 #include "mhd/nonideal.hpp"
-#include "mhd/reconstruction.hpp"
+#include "mhd/parallel.hpp"
+#include "mhd/simd.hpp"
 #include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 // Scratch for MUSCL-GLM (+ optional non-ideal) RHS. Owned by TimeIntegratorWorkspace.
+//
+// Face fluxes are never stored for the whole grid: each thread keeps three flux rows
+// (x-faces of row j, y-faces below and above row j) and assembles the RHS of row j directly.
 struct RHSWorkspace {
     PrimitiveField prim;
-    StateField fx; // flux at left face of cell (i,j)  <=> interface i-1/2
-    StateField fy; // flux at bottom face of cell (i,j) <=> interface j-1/2
     std::vector<double> Jx;
     std::vector<double> Jy;
     std::vector<double> Jz;
 
+    int row_len = 0;
+    // Per-thread scratch: 3 flux rows x 9 components x row_len.
+    std::vector<std::vector<double>> row_scratch;
+
     RHSWorkspace() = default;
 
     RHSWorkspace(int nx_tot, int ny_tot)
-        : prim(nx_tot, ny_tot), fx(nx_tot, ny_tot), fy(nx_tot, ny_tot),
+        : prim(nx_tot, ny_tot),
           Jx(static_cast<std::size_t>(nx_tot) * static_cast<std::size_t>(ny_tot), 0.0),
           Jy(static_cast<std::size_t>(nx_tot) * static_cast<std::size_t>(ny_tot), 0.0),
-          Jz(static_cast<std::size_t>(nx_tot) * static_cast<std::size_t>(ny_tot), 0.0)
+          Jz(static_cast<std::size_t>(nx_tot) * static_cast<std::size_t>(ny_tot), 0.0),
+          row_len(nx_tot)
     {
+        ensure_threads(mhd::num_threads());
+    }
+
+    // Grows the per-thread scratch after mhd::set_num_threads(); no-op in steady state.
+    void ensure_threads(int n)
+    {
+        const std::size_t want = static_cast<std::size_t>(std::max(1, n));
+        const std::size_t len = static_cast<std::size_t>(27) * static_cast<std::size_t>(row_len);
+        if (row_scratch.size() < want) {
+            row_scratch.resize(want);
+        }
+        for (auto& s : row_scratch) {
+            if (s.size() != len) {
+                s.assign(len, 0.0);
+            }
+        }
     }
 };
 
 inline void fill_primitives(const StateField& U, PrimitiveField& W, double gamma)
 {
-    const std::size_t n = U.rho.size();
-    for (std::size_t idx = 0; idx < n; ++idx) {
-        const MHDState Ucell{
-            U.rho[idx], U.mx[idx], U.my[idx], U.mz[idx],  U.energy[idx],
-            U.bx[idx],  U.by[idx], U.bz[idx], U.psi[idx],
-        };
-        const MHDPrimitive P = to_primitive(Ucell, gamma);
-        W.rho[idx] = P.rho;
-        W.vx[idx] = P.vx;
-        W.vy[idx] = P.vy;
-        W.vz[idx] = P.vz;
-        W.pressure[idx] = P.pressure;
-        W.bx[idx] = P.bx;
-        W.by[idx] = P.by;
-        W.bz[idx] = P.bz;
-        W.psi[idx] = P.psi;
+    const bool use_simd = mhd::simd_enabled();
+    mhd::parallel_range(U.rho.size(), mhd::simd::kWidth,
+                        [&](std::size_t lo, std::size_t hi, int /*tid*/) {
+                            mhd::kernels::primitive_range(U, W, lo, hi, gamma, use_simd);
+                        });
+}
+
+namespace detail {
+
+// Non-ideal electric-field contribution to the x-faces of row j (faces i_begin .. i_end).
+inline void add_nonideal_x_row(const PrimitiveField& W, const RHSWorkspace& work,
+                               const Grid2D& grid, int j, const mhd::kernels::FluxRow& fx,
+                               const NonIdealConfig& cfg)
+{
+    const int nx = W.nx;
+    for (int k = 0; k <= grid.nx; ++k) {
+        const int i = grid.i_begin() + k;
+        const int il = j * nx + (i - 1);
+        const int ir = j * nx + i;
+        const Vec3 J =
+            avg3(work.Jx[il], work.Jy[il], work.Jz[il], work.Jx[ir], work.Jy[ir], work.Jz[ir]);
+        const Vec3 B = avg3(W.bx[il], W.by[il], W.bz[il], W.bx[ir], W.by[ir], W.bz[ir]);
+        const Vec3 E = nonideal_electric_field(J, B, cfg);
+        // F_by += -Ez, F_bz += +Ey, F_E += (B x E)_x = By Ez - Bz Ey
+        fx.c[6][k] += -E.z;
+        fx.c[7][k] += E.y;
+        fx.c[4][k] += B.y * E.z - B.z * E.y;
     }
 }
 
-inline void store_flux(StateField& F, int i, int j, const MHDFlux& flux)
+// Non-ideal contribution to the y-faces j-1/2 of row j (cells i_begin .. i_end-1).
+inline void add_nonideal_y_row(const PrimitiveField& W, const RHSWorkspace& work,
+                               const Grid2D& grid, int j, const mhd::kernels::FluxRow& fy,
+                               const NonIdealConfig& cfg)
 {
-    const int idx = F.index(i, j);
-    F.rho[idx] = flux.rho;
-    F.mx[idx] = flux.mx;
-    F.my[idx] = flux.my;
-    F.mz[idx] = flux.mz;
-    F.energy[idx] = flux.energy;
-    F.bx[idx] = flux.bx;
-    F.by[idx] = flux.by;
-    F.bz[idx] = flux.bz;
-    F.psi[idx] = flux.psi;
+    const int nx = W.nx;
+    for (int k = 0; k < grid.nx; ++k) {
+        const int i = grid.i_begin() + k;
+        const int ib = (j - 1) * nx + i;
+        const int it = j * nx + i;
+        const Vec3 J =
+            avg3(work.Jx[ib], work.Jy[ib], work.Jz[ib], work.Jx[it], work.Jy[it], work.Jz[it]);
+        const Vec3 B = avg3(W.bx[ib], W.by[ib], W.bz[ib], W.bx[it], W.by[it], W.bz[it]);
+        const Vec3 E = nonideal_electric_field(J, B, cfg);
+        // F_bx += +Ez, F_bz += -Ex, F_E += (B x E)_y = Bz Ex - Bx Ez
+        fy.c[5][k] += E.z;
+        fy.c[7][k] += -E.x;
+        fy.c[4][k] += B.z * E.x - B.x * E.z;
+    }
 }
 
-inline MHDFlux load_flux(const StateField& F, int i, int j)
+inline void assemble_component(double* MHD_RESTRICT out, const double* MHD_RESTRICT fx,
+                               const double* MHD_RESTRICT gb, const double* MHD_RESTRICT gt, int n,
+                               double inv_dx, double inv_dy)
 {
-    const int idx = F.index(i, j);
-    return MHDFlux{
-        F.rho[idx], F.mx[idx], F.my[idx], F.mz[idx],  F.energy[idx],
-        F.bx[idx],  F.by[idx], F.bz[idx], F.psi[idx],
-    };
+    for (int k = 0; k < n; ++k) {
+        out[k] = -(fx[k + 1] - fx[k]) * inv_dx - (gt[k] - gb[k]) * inv_dy;
+    }
 }
 
-// Ideal / non-ideal GLM-MHD spatial operator.
+using ComponentPtrs = std::array<double*, 9>;
+
+inline ComponentPtrs state_ptrs(StateField& U)
+{
+    return {U.rho.data(), U.mx.data(), U.my.data(), U.mz.data(), U.energy.data(),
+            U.bx.data(),  U.by.data(), U.bz.data(), U.psi.data()};
+}
+
+} // namespace detail
+
+// Ideal / non-ideal GLM-MHD spatial operator (MUSCL + HLL + Dedner GLM).
 // Non-ideal Ohmic / Hall / Ambipolar terms are added only when enabled in `nonideal`.
+//
+// Row-fused, SIMD-vectorized and multithreaded. compute_rhs_reference() in rhs_reference.hpp
+// is the original scalar implementation and agrees with this one to round-off.
 inline void compute_rhs(const StateField& U, StateField& rhs, const Grid2D& grid,
                         RHSWorkspace& work, double gamma, double c_h, double glm_alpha,
                         SlopeLimiter limiter,
-                        const NonIdealConfig& nonideal = NonIdealConfig::ideal())
+                        const NonIdealConfig& nonideal = NonIdealConfig::ideal(),
+                        const FluidMask* mask = nullptr)
 {
 #ifndef NDEBUG
     if (U.nx != grid.get_size_x() || U.ny != grid.get_size_y()) {
@@ -95,77 +153,88 @@ inline void compute_rhs(const StateField& U, StateField& rhs, const Grid2D& grid
     if (grid.ng < 2) {
         throw std::invalid_argument("compute_rhs (MUSCL) requires grid.ng >= 2");
     }
-    if (work.prim.nx != U.nx || work.fx.nx != U.nx || work.fy.nx != U.nx) {
+    if (work.prim.nx != U.nx || work.row_len != U.nx) {
         throw std::invalid_argument("RHSWorkspace size does not match StateField");
     }
-#else
-    (void)0;
 #endif
 
     fill_primitives(U, work.prim, gamma);
     const PrimitiveField& W = work.prim;
 
+    const bool has_nonideal = nonideal.any();
+    if (has_nonideal) {
+        compute_current(W, grid, work.Jx.data(), work.Jy.data(), work.Jz.data());
+    }
+
+    work.ensure_threads(mhd::num_threads());
+
     const double inv_dx = 1.0 / grid.dx;
     const double inv_dy = 1.0 / grid.dy;
-
-    for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
-        for (int i = grid.i_begin(); i <= grid.i_end(); ++i) {
-            const MHDPrimitive Wmm = W.get(i - 2, j);
-            const MHDPrimitive Wm = W.get(i - 1, j);
-            const MHDPrimitive W0 = W.get(i, j);
-            const MHDPrimitive Wp = W.get(i + 1, j);
-
-            MHDPrimitive WL{};
-            MHDPrimitive WR{};
-            muscl_interface_x(Wmm, Wm, W0, Wp, limiter, WL, WR);
-            store_flux(work.fx, i, j, hll_flux_x(WL, WR, gamma, c_h));
-        }
-    }
-
-    for (int j = grid.j_begin(); j <= grid.j_end(); ++j) {
-        for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
-            const MHDPrimitive Wmm = W.get(i, j - 2);
-            const MHDPrimitive Wm = W.get(i, j - 1);
-            const MHDPrimitive W0 = W.get(i, j);
-            const MHDPrimitive Wp = W.get(i, j + 1);
-
-            MHDPrimitive WB{};
-            MHDPrimitive WT{};
-            muscl_interface_y(Wmm, Wm, W0, Wp, limiter, WB, WT);
-            store_flux(work.fy, i, j, hll_flux_y(WB, WT, gamma, c_h));
-        }
-    }
-
-    // Ideal path: skip all non-ideal work.
-    if (nonideal.any()) {
-        compute_current(W, grid, work.Jx.data(), work.Jy.data(), work.Jz.data());
-        add_nonideal_face_fluxes(W, work.fx, work.fy, grid, work.Jx.data(), work.Jy.data(),
-                                 work.Jz.data(), nonideal);
-    }
-
     const double h = std::min(grid.dx, grid.dy);
     const double psi_damp = (c_h > 0.0 && glm_alpha > 0.0) ? (c_h * glm_alpha / h) : 0.0;
+    const bool use_simd = mhd::simd_enabled();
 
-    for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
-        for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
-            const MHDFlux F_L = load_flux(work.fx, i, j);
-            const MHDFlux F_R = load_flux(work.fx, i + 1, j);
-            const MHDFlux G_B = load_flux(work.fy, i, j);
-            const MHDFlux G_T = load_flux(work.fy, i, j + 1);
+    const mhd::kernels::PrimPtrs P(W);
+    const std::ptrdiff_t nx_tot = U.nx;
+    const int nxi = grid.nx;
+    const int ib = grid.i_begin();
+    const int ng = grid.ng;
+    const detail::ComponentPtrs R = detail::state_ptrs(rhs);
+    const double* MHD_RESTRICT psi_now = U.psi.data();
+    const long long cells = static_cast<long long>(grid.nx) * grid.ny;
 
-            MHDState L{};
-            L.rho = -(F_R.rho - F_L.rho) * inv_dx - (G_T.rho - G_B.rho) * inv_dy;
-            L.mx = -(F_R.mx - F_L.mx) * inv_dx - (G_T.mx - G_B.mx) * inv_dy;
-            L.my = -(F_R.my - F_L.my) * inv_dx - (G_T.my - G_B.my) * inv_dy;
-            L.mz = -(F_R.mz - F_L.mz) * inv_dx - (G_T.mz - G_B.mz) * inv_dy;
-            L.energy = -(F_R.energy - F_L.energy) * inv_dx - (G_T.energy - G_B.energy) * inv_dy;
-            L.bx = -(F_R.bx - F_L.bx) * inv_dx - (G_T.bx - G_B.bx) * inv_dy;
-            L.by = -(F_R.by - F_L.by) * inv_dx - (G_T.by - G_B.by) * inv_dy;
-            L.bz = -(F_R.bz - F_L.bz) * inv_dx - (G_T.bz - G_B.bz) * inv_dy;
-            L.psi = -(F_R.psi - F_L.psi) * inv_dx - (G_T.psi - G_B.psi) * inv_dy;
-            L.psi -= psi_damp * U.psi[U.index(i, j)];
-
-            rhs.set_state(i, j, L);
+    mhd::parallel_rows(grid.j_begin(), grid.j_end(), cells, [&](int j0, int j1, int tid) {
+        double* scratch = work.row_scratch[static_cast<std::size_t>(tid)].data();
+        const std::size_t len = static_cast<std::size_t>(work.row_len);
+        mhd::kernels::FluxRow fx{};
+        mhd::kernels::FluxRow fy_lo{};
+        mhd::kernels::FluxRow fy_hi{};
+        for (int c = 0; c < 9; ++c) {
+            fx.c[c] = scratch + static_cast<std::size_t>(c) * len;
+            fy_lo.c[c] = scratch + static_cast<std::size_t>(9 + c) * len;
+            fy_hi.c[c] = scratch + static_cast<std::size_t>(18 + c) * len;
         }
-    }
+
+        auto y_faces = [&](int j, const mhd::kernels::FluxRow& out) {
+            mhd::kernels::face_row<true>(limiter, P, j * nx_tot + ib, nx_tot, nxi, gamma, c_h, out,
+                                         use_simd);
+            if (has_nonideal) {
+                detail::add_nonideal_y_row(W, work, grid, j, out, nonideal);
+            }
+        };
+
+        y_faces(j0, fy_lo);
+        for (int j = j0; j < j1; ++j) {
+            const std::ptrdiff_t row = j * nx_tot + ib;
+            mhd::kernels::face_row<false>(limiter, P, row, 1, nxi + 1, gamma, c_h, fx, use_simd);
+            if (has_nonideal) {
+                detail::add_nonideal_x_row(W, work, grid, j, fx, nonideal);
+            }
+            y_faces(j + 1, fy_hi);
+
+            for (int c = 0; c < 9; ++c) {
+                detail::assemble_component(R[c] + row, fx.c[c], fy_lo.c[c], fy_hi.c[c], nxi, inv_dx,
+                                           inv_dy);
+            }
+            if (psi_damp != 0.0) {
+                double* MHD_RESTRICT rpsi = R[8] + row;
+                const double* MHD_RESTRICT upsi = psi_now + row;
+                for (int k = 0; k < nxi; ++k) {
+                    rpsi[k] -= psi_damp * upsi[k];
+                }
+            }
+            if (mask != nullptr) {
+                const std::uint8_t* fluid =
+                    mask->fluid.data() + static_cast<std::size_t>(j - ng) * mask->nx;
+                for (int k = 0; k < nxi; ++k) {
+                    if (fluid[k] == 0) {
+                        for (int c = 0; c < 9; ++c) {
+                            R[c][row + k] = 0.0;
+                        }
+                    }
+                }
+            }
+            std::swap(fy_lo, fy_hi);
+        }
+    });
 }

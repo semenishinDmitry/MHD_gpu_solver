@@ -3,10 +3,16 @@
 #include "boundary_conditions/boundary_conditions.hpp"
 #include "grid/grid.hpp"
 #include "initial_condition/inititial_condition.hpp"
+#include "mhd/gpu/device_solver.hpp"
+#include "mhd/mask.hpp"
+#include "mhd/mhd_physics.hpp"
 #include "mhd/time_integrator.hpp"
 #include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -19,7 +25,7 @@ class MHDSolver {
               double y_max = 1.0, int ng = 2)
         : grid_(nx, ny, x_min, x_max, y_min, y_max, ng),
           bc_(BoundaryConditionType::Periodic, BoundaryConditionType::Periodic),
-          U_(grid_.get_size_x(), grid_.get_size_y()), work_(grid_)
+          U_(grid_.get_size_x(), grid_.get_size_y()), work_(grid_), mask_(nx, ny, true)
     {
         if (ng < 2) {
             throw std::invalid_argument("MHDSolver requires ng >= 2");
@@ -60,6 +66,15 @@ class MHDSolver {
     const BoundaryConditions& boundary_conditions() const
     {
         return bc_;
+    }
+
+    FluidMask& mask()
+    {
+        return mask_;
+    }
+    const FluidMask& mask() const
+    {
+        return mask_;
     }
 
     void set_periodic_bc()
@@ -129,6 +144,135 @@ class MHDSolver {
         params_.nonideal.disable_ambipolar();
     }
 
+    // Interior mask: row-major ny*nx, 1=fluid, 0=solid.
+    void set_mask(const std::uint8_t* data, std::size_t n)
+    {
+        mask_.set_from_interior(data, n, grid_.nx, grid_.ny);
+        if (walls_reflective_) {
+            apply_solid_wall_fill(U_, grid_, mask_, params_.gamma);
+        }
+    }
+
+    void clear_mask()
+    {
+        mask_ = FluidMask(grid_.nx, grid_.ny, true);
+    }
+
+    std::vector<std::uint8_t> copy_mask() const
+    {
+        return mask_.fluid;
+    }
+
+    // Execution backend: "cpu" (default; SIMD + threads), "metal" (fp32) or "cuda".
+    // GPU backends upload the state at the start of run() and download it at the end, so all
+    // other methods keep working on the host copy.
+    void set_backend(mhd::Backend backend, mhd::Precision precision = mhd::Precision::FP64)
+    {
+        if (backend != mhd::Backend::CPU && !mhd::backend_available(backend)) {
+            throw std::runtime_error(std::string("Backend not available: ") +
+                                     mhd::backend_name(backend));
+        }
+        backend_ = backend;
+        precision_ = precision;
+        device_.reset();
+    }
+
+    void set_backend(const std::string& name, const std::string& precision = "fp64")
+    {
+        set_backend(mhd::parse_backend(name),
+                    precision == "fp32" ? mhd::Precision::FP32 : mhd::Precision::FP64);
+    }
+
+    mhd::Backend backend() const
+    {
+        return backend_;
+    }
+
+    // Device description, e.g. "Metal: Apple M5"; "cpu" for the CPU backend.
+    std::string backend_device()
+    {
+        if (backend_ == mhd::Backend::CPU) {
+            return "cpu";
+        }
+        return device().device_name();
+    }
+
+    void set_walls_reflective(bool enabled)
+    {
+        walls_reflective_ = enabled;
+    }
+
+    bool walls_reflective() const
+    {
+        return walls_reflective_;
+    }
+
+    // Write a conserved SoA field (full array including ghosts), row-major ny_tot * nx_tot.
+    void set_field(const std::string& name, const double* data, std::size_t n)
+    {
+        const std::size_t expected = static_cast<std::size_t>(grid_.get_size_x()) *
+                                     static_cast<std::size_t>(grid_.get_size_y());
+        if (n != expected) {
+            throw std::invalid_argument("set_field: size does not match full SoA layout");
+        }
+        std::vector<double>* dst = field_ptr(name);
+        dst->assign(data, data + n);
+    }
+
+    // Write an interior-only field (ny * nx), leaving ghosts untouched.
+    void set_field_interior(const std::string& name, const double* data, std::size_t n)
+    {
+        const std::size_t expected =
+            static_cast<std::size_t>(grid_.nx) * static_cast<std::size_t>(grid_.ny);
+        if (n != expected) {
+            throw std::invalid_argument("set_field_interior: size does not match nx*ny");
+        }
+        std::vector<double>* dst = field_ptr(name);
+        const int ng = grid_.ng;
+        for (int j = 0; j < grid_.ny; ++j) {
+            for (int i = 0; i < grid_.nx; ++i) {
+                const int gi = i + ng;
+                const int gj = j + ng;
+                (*dst)[static_cast<std::size_t>(U_.index(gi, gj))] =
+                    data[static_cast<std::size_t>(j * grid_.nx + i)];
+            }
+        }
+    }
+
+    // Fill conserved state from primitive values on interior cells (rho,vx,vy,vz,p,bx,by,bz,psi).
+    void set_primitives_interior(const double* rho, const double* vx, const double* vy,
+                                 const double* vz, const double* pressure, const double* bx,
+                                 const double* by, const double* bz, const double* psi,
+                                 std::size_t n)
+    {
+        const std::size_t expected =
+            static_cast<std::size_t>(grid_.nx) * static_cast<std::size_t>(grid_.ny);
+        if (n != expected) {
+            throw std::invalid_argument("set_primitives_interior: size does not match nx*ny");
+        }
+        const int ng = grid_.ng;
+        for (int j = 0; j < grid_.ny; ++j) {
+            for (int i = 0; i < grid_.nx; ++i) {
+                const std::size_t k = static_cast<std::size_t>(j * grid_.nx + i);
+                MHDPrimitive W{};
+                W.rho = rho[k];
+                W.vx = vx[k];
+                W.vy = vy[k];
+                W.vz = vz[k];
+                W.pressure = pressure[k];
+                W.bx = bx[k];
+                W.by = by[k];
+                W.bz = bz[k];
+                W.psi = psi != nullptr ? psi[k] : 0.0;
+                U_.set_state(i + ng, j + ng, to_conservative(W, params_.gamma));
+            }
+        }
+        apply_boundary_conditions(U_, grid_, bc_);
+        if (walls_reflective_ && !mask_.all_fluid()) {
+            apply_solid_wall_fill(U_, grid_, mask_, params_.gamma);
+        }
+    }
+
     void initialize(const std::string& name)
     {
         const InitialConditionType type = parse_initial_condition_name(name);
@@ -140,6 +284,9 @@ class MHDSolver {
         }
         initialize_state_field(U_, grid_, type, params_.gamma);
         apply_boundary_conditions(U_, grid_, bc_);
+        if (walls_reflective_ && !mask_.all_fluid()) {
+            apply_solid_wall_fill(U_, grid_, mask_, params_.gamma);
+        }
         t_ = 0.0;
         steps_ = 0;
     }
@@ -151,7 +298,17 @@ class MHDSolver {
         }
         SolveParams local = params_;
         local.t_end = t_end;
-        const SolveResult r = solve(U_, work_, grid_, bc_, local);
+        const FluidMask* mask_ptr = mask_.all_fluid() ? nullptr : &mask_;
+        SolveResult r{};
+        if (backend_ == mhd::Backend::CPU) {
+            r = solve(U_, work_, grid_, bc_, local, mask_ptr, walls_reflective_);
+        } else {
+            mhd::DeviceSolver& dev = device();
+            dev.configure(bc_, mask_ptr, walls_reflective_);
+            dev.upload(U_);
+            r = dev.solve(local);
+            dev.download(U_);
+        }
         t_ += r.t;
         steps_ += r.steps;
         last_c_h_ = r.c_h;
@@ -192,29 +349,7 @@ class MHDSolver {
     // Flat row-major copies (ny * nx_tot), including ghosts. Useful for Python/numpy.
     std::vector<double> copy_field(const std::string& name) const
     {
-        const std::vector<double>* src = nullptr;
-        if (name == "rho") {
-            src = &U_.rho;
-        } else if (name == "mx") {
-            src = &U_.mx;
-        } else if (name == "my") {
-            src = &U_.my;
-        } else if (name == "mz") {
-            src = &U_.mz;
-        } else if (name == "energy") {
-            src = &U_.energy;
-        } else if (name == "bx") {
-            src = &U_.bx;
-        } else if (name == "by") {
-            src = &U_.by;
-        } else if (name == "bz") {
-            src = &U_.bz;
-        } else if (name == "psi") {
-            src = &U_.psi;
-        } else {
-            throw std::invalid_argument("Unknown field: " + name);
-        }
-        return *src;
+        return *field_ptr_const(name);
     }
 
     int size_x() const
@@ -238,13 +373,80 @@ class MHDSolver {
         return grid_.ng;
     }
 
+    double x_min() const
+    {
+        return grid_.x_min;
+    }
+    double x_max() const
+    {
+        return grid_.x_max;
+    }
+    double y_min() const
+    {
+        return grid_.y_min;
+    }
+    double y_max() const
+    {
+        return grid_.y_max;
+    }
+
   private:
+    mhd::DeviceSolver& device()
+    {
+        if (!device_) {
+            device_ = mhd::make_device_solver(backend_, grid_, precision_);
+        }
+        return *device_;
+    }
+
+    std::vector<double>* field_ptr(const std::string& name)
+    {
+        if (name == "rho") {
+            return &U_.rho;
+        }
+        if (name == "mx") {
+            return &U_.mx;
+        }
+        if (name == "my") {
+            return &U_.my;
+        }
+        if (name == "mz") {
+            return &U_.mz;
+        }
+        if (name == "energy") {
+            return &U_.energy;
+        }
+        if (name == "bx") {
+            return &U_.bx;
+        }
+        if (name == "by") {
+            return &U_.by;
+        }
+        if (name == "bz") {
+            return &U_.bz;
+        }
+        if (name == "psi") {
+            return &U_.psi;
+        }
+        throw std::invalid_argument("Unknown field: " + name);
+    }
+
+    const std::vector<double>* field_ptr_const(const std::string& name) const
+    {
+        return const_cast<MHDSolver*>(this)->field_ptr(name);
+    }
+
     Grid2D grid_;
     BoundaryConditions bc_;
     StateField U_;
     TimeIntegratorWorkspace work_;
+    FluidMask mask_;
     SolveParams params_{};
     double t_ = 0.0;
     int steps_ = 0;
     double last_c_h_ = 0.0;
+    bool walls_reflective_ = true;
+    mhd::Backend backend_ = mhd::Backend::CPU;
+    mhd::Precision precision_ = mhd::Precision::FP64;
+    std::shared_ptr<mhd::DeviceSolver> device_;
 };
