@@ -2,6 +2,7 @@
 
 #include "grid/grid.hpp"
 #include "mhd/compat.hpp"
+#include "mhd/mask.hpp"
 #include "mhd/mhd_physics.hpp"
 #include "mhd/mhd_types.hpp"
 #include "physics_config/mhd_config.hpp"
@@ -23,7 +24,8 @@ struct CFLResult {
 //   dt_diff = cfl * h^2 / (2 * d * η_max),  d=2, h=min(dx,dy)
 inline CFLResult compute_cfl_dt(const StateField& U, const Grid2D& grid, double gamma,
                                 double cfl_number,
-                                const NonIdealConfig& nonideal = NonIdealConfig::ideal())
+                                const NonIdealConfig& nonideal = NonIdealConfig::ideal(),
+                                const FluidMask* mask = nullptr)
 {
     if (cfl_number <= 0.0) {
         throw std::invalid_argument("CFL number must be positive");
@@ -47,9 +49,13 @@ inline CFLResult compute_cfl_dt(const StateField& U, const Grid2D& grid, double 
 
     double c_h = 0.0;
 
+    const int ng = grid.ng;
     for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
         const int row = j * U.nx;
         for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
+            if (mask != nullptr && !mask->is_fluid_global(i, j, ng)) {
+                continue;
+            }
             const int idx = row + i;
             const MHDState state{
                 rho[idx], mx[idx], my[idx], mz[idx],  energy[idx],

@@ -75,8 +75,19 @@ Sanitizers: `-DMHD_ENABLE_SANITIZERS=ON` or `.github/workflows/sanitizers.yml`.
 ```bash
 export PYTHONPATH="$PWD/build/python:$PYTHONPATH"
 python examples/python/orszag_tang.py
-./scripts/run_gui.sh          # browser UI by default
+./scripts/run_gui.sh          # browser setup UI (builds if needed)
 ```
+
+The browser GUI (`gui/web_app.py`) is a single-page setup flow:
+
+1. **Domain / mesh** — bounds, `nx`/`ny`, CFL, γ, GLM, limiter, `t_end`
+2. **Geometry** — draw rectangle / circle / polygon solids (or fluid paint); mask preview
+3. **IC** — named presets or regional constant primitives on fluid cells
+4. **Boundaries** — Periodic/Outflow per axis; interior solids act as reflective walls
+5. **Run** — field heatmap with time scrub (solids shown gray / NaN)
+
+Geometry rasterization is pure Python (`gui/geometry.py`); the C++ core consumes a
+`uint8` fluid/solid mask. See [docs/geometry.md](docs/geometry.md).
 
 ## Documentation index
 
@@ -87,7 +98,8 @@ python examples/python/orszag_tang.py
 | [reconstruction.md](docs/reconstruction.md) | MUSCL / limiters |
 | [riemann-solvers.md](docs/riemann-solvers.md) | HLL |
 | [glm.md](docs/glm.md) | Divergence cleaning |
-| [boundary-conditions.md](docs/boundary-conditions.md) | Periodic / outflow |
+| [boundary-conditions.md](docs/boundary-conditions.md) | Periodic / outflow / solid walls |
+| [geometry.md](docs/geometry.md) | Cartesian mask / staircase IB |
 | [verification.md](docs/verification.md) | Test problems & EOC |
 | [benchmarks.md](docs/benchmarks.md) | Timing methodology |
 | [build.md](docs/build.md) | Toolchain & options |

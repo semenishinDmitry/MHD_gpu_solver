@@ -2,6 +2,7 @@
 
 #include "grid/grid.hpp"
 #include "mhd/hll.hpp"
+#include "mhd/mask.hpp"
 #include "mhd/mhd_physics.hpp"
 #include "mhd/mhd_types.hpp"
 #include "mhd/nonideal.hpp"
@@ -83,7 +84,8 @@ inline MHDFlux load_flux(const StateField& F, int i, int j)
 inline void compute_rhs(const StateField& U, StateField& rhs, const Grid2D& grid,
                         RHSWorkspace& work, double gamma, double c_h, double glm_alpha,
                         SlopeLimiter limiter,
-                        const NonIdealConfig& nonideal = NonIdealConfig::ideal())
+                        const NonIdealConfig& nonideal = NonIdealConfig::ideal(),
+                        const FluidMask* mask = nullptr)
 {
 #ifndef NDEBUG
     if (U.nx != grid.get_size_x() || U.ny != grid.get_size_y()) {
@@ -167,5 +169,9 @@ inline void compute_rhs(const StateField& U, StateField& rhs, const Grid2D& grid
 
             rhs.set_state(i, j, L);
         }
+    }
+
+    if (mask != nullptr) {
+        zero_rhs_on_solids(rhs, grid, *mask);
     }
 }
