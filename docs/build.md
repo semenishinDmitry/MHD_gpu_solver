@@ -26,6 +26,23 @@ ctest --test-dir build --output-on-failure
 | `MHD_BUILD_TESTS` | ON | GoogleTest suite |
 | `MHD_BUILD_PYTHON` | ON | pybind11 module |
 | `MHD_BUILD_BENCHMARKS` | OFF | Google Benchmark |
+| `MHD_ENABLE_METAL` | ON on macOS | Metal GPU backend (fp32), see [gpu.md](gpu.md) |
+| `MHD_ENABLE_CUDA` | OFF | CUDA GPU backend (fp64/fp32), needs the CUDA toolkit |
+| `MHD_CUDA_ARCHITECTURES` | `70;80;86;89;90` | `CMAKE_CUDA_ARCHITECTURES` for the CUDA backend |
+
+### SIMD instruction set
+
+The CPU kernels pick their SIMD backend from the compiler target (see
+[performance.md](performance.md#2-simd)). With `MHD_NATIVE_ARCH=ON` this is the best set for the
+build machine. Portable builds get SSE2 (x86-64) or NEON (ARM64). To target AVX2 explicitly:
+
+```bash
+cmake -S . -B build -DMHD_NATIVE_ARCH=OFF -DCMAKE_CXX_FLAGS="-mavx2 -mfma"   # GCC / Clang
+cmake -S . -B build -DMHD_NATIVE_ARCH=OFF -DCMAKE_CXX_FLAGS="/arch:AVX2"     # MSVC
+```
+
+Threads are controlled at run time (`MHD_NUM_THREADS`, `mhd::set_num_threads`), not at
+build time.
 
 ### Sanitizer build
 

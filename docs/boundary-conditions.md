@@ -4,7 +4,7 @@ Implemented in `include/boundary_conditions/boundary_conditions.hpp`.
 
 | Type | Meaning | Implementation notes |
 |------|---------|----------------------|
-| **Periodic** | Identify opposite sides | Copies interior into ghosts |
+| **Periodic** | Identify opposite sides | Copies interior into ghosts; source index wraps modulo the interior size (`periodic_source`), so it also works when there are fewer interior cells than ghosts (`ny = 1` strips) |
 | **Outflow** | Zero-order extrapolation | Copies nearest interior into ghosts |
 | **Reflective** | Enum exists | **Not implemented** on domain edges (throws) |
 
@@ -40,4 +40,8 @@ remains unimplemented; place solid cells against the boundary if you need a wall
 | Channel + obstacle | Outflow (or Periodic) edges + solid mask |
 
 1D tubes use `ny=1` and a thin physical height \(\approx\Delta x\) so that the y-direction is a
-periodic dummy dimension.
+periodic dummy dimension. With `ny = 1 < ng = 2`, every y-ghost row must be a copy of the single
+interior row. Earlier versions used the index `ny + g`, so ghost row 0 copied ghost row 1 and
+lagged one boundary update behind (all zeros at `t = 0`). The modulo formula fixes this;
+`BoundaryConditions.PeriodicFewerCellsThanGhosts` covers it. The GPU backends use the same
+formula.

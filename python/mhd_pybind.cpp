@@ -2,7 +2,10 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "mhd/gpu/device_solver.hpp"
 #include "mhd/mhd_types.hpp"
+#include "mhd/parallel.hpp"
+#include "mhd/simd.hpp"
 #include "mhd/solver_api.hpp"
 #include "physics_config/mhd_config.hpp"
 
@@ -164,6 +167,32 @@ PYBIND11_MODULE(mhd_solver, m)
 {
     m.doc() = "2D ideal / non-ideal GLM-MHD finite-volume solver";
 
+    // --- Execution settings (process-wide) ---
+    m.def("set_num_threads", &mhd::set_num_threads, py::arg("n"),
+          "Number of CPU worker threads; 0 restores the default (MHD_NUM_THREADS or all cores)");
+    m.def("num_threads", &mhd::num_threads);
+    m.def("set_simd_enabled", &mhd::set_simd_enabled, py::arg("enabled"),
+          "Toggle the explicit SIMD kernels (for benchmarking; default on)");
+    m.def("simd_enabled", &mhd::simd_enabled);
+    m.def(
+        "simd_backend", [] { return std::string(mhd::simd::kBackendName); },
+        "Compile-time SIMD instruction set: NEON, SSE2, AVX, AVX2, AVX-512F or scalar");
+    m.def("simd_width", [] { return mhd::simd::kWidth; }, "doubles per SIMD vector");
+    m.def("metal_available", &mhd::metal_available);
+    m.def("cuda_available", &mhd::cuda_available);
+    m.def(
+        "available_backends",
+        [] {
+            std::vector<std::string> out{"cpu"};
+            if (mhd::metal_available()) {
+                out.emplace_back("metal");
+            }
+            if (mhd::cuda_available()) {
+                out.emplace_back("cuda");
+            }
+            return out;
+        },
+        "Backends usable on this machine");
 
     py::enum_<SlopeLimiter>(m, "SlopeLimiter")
         .value("Minmod", SlopeLimiter::Minmod)
@@ -247,8 +276,18 @@ PYBIND11_MODULE(mhd_solver, m)
              py::arg("bz"), py::arg("psi") = py::none(),
              "Set interior conserved state from primitive arrays (ny, nx)")
         .def("initialize", &MHDSolver::initialize, py::arg("name"))
-        .def("run", &MHDSolver::run, py::arg("t_end"))
-        .def("advance_to", &MHDSolver::advance_to, py::arg("t_abs"))
+        .def("set_backend",
+             py::overload_cast<const std::string&, const std::string&>(&MHDSolver::set_backend),
+             py::arg("backend"), py::arg("precision") = "fp64",
+             "Execution backend: 'cpu' (default), 'metal' (always fp32) or 'cuda' "
+             "(precision 'fp64' or 'fp32')")
+        .def_property_readonly(
+            "backend",
+            [](const MHDSolver& s) { return std::string(mhd::backend_name(s.backend())); })
+        .def("backend_device", &MHDSolver::backend_device)
+        .def("run", &MHDSolver::run, py::arg("t_end"), py::call_guard<py::gil_scoped_release>())
+        .def("advance_to", &MHDSolver::advance_to, py::arg("t_abs"),
+             py::call_guard<py::gil_scoped_release>())
         .def_property_readonly("time", &MHDSolver::time)
         .def_property_readonly("steps", &MHDSolver::steps)
         .def_property_readonly("c_h", &MHDSolver::c_h)

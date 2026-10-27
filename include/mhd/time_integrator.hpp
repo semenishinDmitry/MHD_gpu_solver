@@ -7,6 +7,7 @@
 #include "mhd/mask.hpp"
 #include "mhd/mhd_types.hpp"
 #include "mhd/rhs.hpp"
+#include "mhd/solve_types.hpp"
 #include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
@@ -57,22 +58,6 @@ inline void ssp_rk2_step(StateField& U, TimeIntegratorWorkspace& work, const Gri
                 nonideal, mask);
     field_ssp_rk2_combine(U, work.U_star, work.rhs, dt);
 }
-
-struct SolveParams {
-    double t_end = 0.0;
-    double cfl = 0.4;
-    double gamma = 5.0 / 3.0;
-    double glm_alpha = 0.1;
-    SlopeLimiter limiter = SlopeLimiter::MC;
-    NonIdealConfig nonideal = NonIdealConfig::ideal();
-    int max_steps = 1'000'000;
-};
-
-struct SolveResult {
-    double t = 0.0;
-    int steps = 0;
-    double c_h = 0.0;
-};
 
 inline SolveResult solve(StateField& U, TimeIntegratorWorkspace& work, const Grid2D& grid,
                          const BoundaryConditions& bc, const SolveParams& params,

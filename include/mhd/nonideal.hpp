@@ -2,6 +2,7 @@
 
 #include "grid/grid.hpp"
 #include "mhd/compat.hpp"
+#include "mhd/parallel.hpp"
 #include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
@@ -39,20 +40,23 @@ inline void compute_current(const PrimitiveField& W, const Grid2D& grid, double*
 
     // Need one layer of ghosts around interior for face averaging; fill all cells
     // with accessible centered neighbors (ng >= 2 guarantees this for interior faces).
-    for (int j = 1; j < grid.get_size_y() - 1; ++j) {
-        const int row = j * nx;
-        for (int i = 1; i < grid.get_size_x() - 1; ++i) {
-            const int idx = row + i;
-            const double dbz_dy = (bz[idx + nx] - bz[idx - nx]) * inv_2dy;
-            const double dbz_dx = (bz[idx + 1] - bz[idx - 1]) * inv_2dx;
-            const double dby_dx = (by[idx + 1] - by[idx - 1]) * inv_2dx;
-            const double dbx_dy = (bx[idx + nx] - bx[idx - nx]) * inv_2dy;
+    const long long cells = static_cast<long long>(grid.nx) * grid.ny;
+    mhd::parallel_rows(1, grid.get_size_y() - 1, cells, [&](int j0, int j1, int /*tid*/) {
+        for (int j = j0; j < j1; ++j) {
+            const int row = j * nx;
+            for (int i = 1; i < grid.get_size_x() - 1; ++i) {
+                const int idx = row + i;
+                const double dbz_dy = (bz[idx + nx] - bz[idx - nx]) * inv_2dy;
+                const double dbz_dx = (bz[idx + 1] - bz[idx - 1]) * inv_2dx;
+                const double dby_dx = (by[idx + 1] - by[idx - 1]) * inv_2dx;
+                const double dbx_dy = (bx[idx + nx] - bx[idx - nx]) * inv_2dy;
 
-            Jx[idx] = dbz_dy;
-            Jy[idx] = -dbz_dx;
-            Jz[idx] = dby_dx - dbx_dy;
+                Jx[idx] = dbz_dy;
+                Jy[idx] = -dbz_dx;
+                Jz[idx] = dby_dx - dbx_dy;
+            }
         }
-    }
+    });
 }
 
 // Non-ideal electric field at a point from J and B.

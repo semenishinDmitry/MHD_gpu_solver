@@ -2,13 +2,16 @@
 
 #include "grid/grid.hpp"
 #include "mhd/compat.hpp"
+#include "mhd/kernels/cpu_rows.hpp"
 #include "mhd/mask.hpp"
 #include "mhd/mhd_physics.hpp"
 #include "mhd/mhd_types.hpp"
+#include "mhd/parallel.hpp"
 #include "physics_config/mhd_config.hpp"
 #include "state/state_field.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -37,37 +40,36 @@ inline CFLResult compute_cfl_dt(const StateField& U, const Grid2D& grid, double 
     const double inv_dx = 1.0 / grid.dx;
     const double inv_dy = 1.0 / grid.dy;
 
-    const double* MHD_RESTRICT rho = U.rho.data();
-    const double* MHD_RESTRICT mx = U.mx.data();
-    const double* MHD_RESTRICT my = U.my.data();
-    const double* MHD_RESTRICT mz = U.mz.data();
-    const double* MHD_RESTRICT energy = U.energy.data();
-    const double* MHD_RESTRICT bx = U.bx.data();
-    const double* MHD_RESTRICT by = U.by.data();
-    const double* MHD_RESTRICT bz = U.bz.data();
-    const double* MHD_RESTRICT psi = U.psi.data();
-
-    double c_h = 0.0;
-
+    const bool use_simd = mhd::simd_enabled();
     const int ng = grid.ng;
-    for (int j = grid.j_begin(); j < grid.j_end(); ++j) {
-        const int row = j * U.nx;
-        for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
-            if (mask != nullptr && !mask->is_fluid_global(i, j, ng)) {
+    const int nx_tot = U.nx;
+    const long long cells = static_cast<long long>(grid.nx) * grid.ny;
+
+    // Max is exact and order-independent, so the threaded reduction is deterministic.
+    std::atomic<double> c_h_max{0.0};
+    mhd::parallel_rows(grid.j_begin(), grid.j_end(), cells, [&](int j0, int j1, int /*tid*/) {
+        double local = 0.0;
+        for (int j = j0; j < j1; ++j) {
+            const int row = j * nx_tot;
+            if (mask == nullptr) {
+                local = std::max(local, mhd::kernels::max_signal_speed_row(
+                                            U, row + grid.i_begin(), grid.nx, gamma, use_simd));
                 continue;
             }
-            const int idx = row + i;
-            const MHDState state{
-                rho[idx], mx[idx], my[idx], mz[idx],  energy[idx],
-                bx[idx],  by[idx], bz[idx], psi[idx],
-            };
-            const MHDPrimitive W = to_primitive(state, gamma);
-            const double cf_x = fast_magnetosonic_speed_x(W, gamma);
-            const double cf_y = fast_magnetosonic_speed_y(W, gamma);
-            c_h = std::max(c_h, std::abs(W.vx) + cf_x);
-            c_h = std::max(c_h, std::abs(W.vy) + cf_y);
+            for (int i = grid.i_begin(); i < grid.i_end(); ++i) {
+                if (!mask->is_fluid_global(i, j, ng)) {
+                    continue;
+                }
+                local = std::max(local,
+                                 mhd::kernels::max_signal_speed_row(U, row + i, 1, gamma, false));
+            }
         }
-    }
+        double cur = c_h_max.load(std::memory_order_relaxed);
+        while (local > cur &&
+               !c_h_max.compare_exchange_weak(cur, local, std::memory_order_relaxed)) {
+        }
+    });
+    const double c_h = c_h_max.load();
 
     CFLResult result{};
     result.c_h = c_h;

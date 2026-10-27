@@ -3,6 +3,7 @@
 #include "boundary_conditions/boundary_conditions.hpp"
 #include "grid/grid.hpp"
 #include "initial_condition/inititial_condition.hpp"
+#include "mhd/gpu/device_solver.hpp"
 #include "mhd/mask.hpp"
 #include "mhd/mhd_physics.hpp"
 #include "mhd/time_integrator.hpp"
@@ -11,6 +12,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -161,6 +163,40 @@ class MHDSolver {
         return mask_.fluid;
     }
 
+    // Execution backend: "cpu" (default; SIMD + threads), "metal" (fp32) or "cuda".
+    // GPU backends upload the state at the start of run() and download it at the end, so all
+    // other methods keep working on the host copy.
+    void set_backend(mhd::Backend backend, mhd::Precision precision = mhd::Precision::FP64)
+    {
+        if (backend != mhd::Backend::CPU && !mhd::backend_available(backend)) {
+            throw std::runtime_error(std::string("Backend not available: ") +
+                                     mhd::backend_name(backend));
+        }
+        backend_ = backend;
+        precision_ = precision;
+        device_.reset();
+    }
+
+    void set_backend(const std::string& name, const std::string& precision = "fp64")
+    {
+        set_backend(mhd::parse_backend(name),
+                    precision == "fp32" ? mhd::Precision::FP32 : mhd::Precision::FP64);
+    }
+
+    mhd::Backend backend() const
+    {
+        return backend_;
+    }
+
+    // Device description, e.g. "Metal: Apple M5"; "cpu" for the CPU backend.
+    std::string backend_device()
+    {
+        if (backend_ == mhd::Backend::CPU) {
+            return "cpu";
+        }
+        return device().device_name();
+    }
+
     void set_walls_reflective(bool enabled)
     {
         walls_reflective_ = enabled;
@@ -263,7 +299,16 @@ class MHDSolver {
         SolveParams local = params_;
         local.t_end = t_end;
         const FluidMask* mask_ptr = mask_.all_fluid() ? nullptr : &mask_;
-        const SolveResult r = solve(U_, work_, grid_, bc_, local, mask_ptr, walls_reflective_);
+        SolveResult r{};
+        if (backend_ == mhd::Backend::CPU) {
+            r = solve(U_, work_, grid_, bc_, local, mask_ptr, walls_reflective_);
+        } else {
+            mhd::DeviceSolver& dev = device();
+            dev.configure(bc_, mask_ptr, walls_reflective_);
+            dev.upload(U_);
+            r = dev.solve(local);
+            dev.download(U_);
+        }
         t_ += r.t;
         steps_ += r.steps;
         last_c_h_ = r.c_h;
@@ -346,6 +391,14 @@ class MHDSolver {
     }
 
   private:
+    mhd::DeviceSolver& device()
+    {
+        if (!device_) {
+            device_ = mhd::make_device_solver(backend_, grid_, precision_);
+        }
+        return *device_;
+    }
+
     std::vector<double>* field_ptr(const std::string& name)
     {
         if (name == "rho") {
@@ -393,4 +446,7 @@ class MHDSolver {
     int steps_ = 0;
     double last_c_h_ = 0.0;
     bool walls_reflective_ = true;
+    mhd::Backend backend_ = mhd::Backend::CPU;
+    mhd::Precision precision_ = mhd::Precision::FP64;
+    std::shared_ptr<mhd::DeviceSolver> device_;
 };
